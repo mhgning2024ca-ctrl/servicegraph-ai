@@ -8,7 +8,7 @@
   },
   "scripts": {
     "build": "pnpm -r --if-present build",
-    "typecheck": "pnpm -r --if-present typecheck",
-    "test": "pnpm -r --if-present test"
+    "typecheck": "pnpm --filter @servicegraph/contracts build && pnpm -r --if-present typecheck",
+    "test": "pnpm --filter @servicegraph/contracts build && pnpm -r --if-present test"
   }
 }
