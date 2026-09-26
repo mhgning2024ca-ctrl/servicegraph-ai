@@ -1,0 +1,181 @@
+"use client";
+
+import { createContext, useContext, useEffect, useMemo, useState } from "react";
+
+export type Locale = "fr" | "en";
+
+const dictionary = {
+  en: {
+    tagline: "From complaint to root cause to safe resolution.",
+    openOps: "Open operations center",
+    openCitizen: "Open citizen portal",
+    heroEyebrow: "AI-assisted service operations",
+    heroTitleA: "Turn fragmented symptoms into",
+    heroTitleB: "one explainable incident.",
+    heroBody: "ServiceGraph correlates customer reports with live infrastructure telemetry, identifies probable root causes and keeps sensitive remediation under human control.",
+    overview: "Overview",
+    incidents: "Incidents",
+    network: "Network",
+    reports: "Reports",
+    analytics: "Analytics",
+    audit: "Audit",
+    live: "Live",
+    commandCenter: "Operations Command Center",
+    globalHealth: "Global service health",
+    operational: "Operational",
+    activeIncidents: "Active incidents",
+    affectedUsers: "Affected users",
+    medianTriage: "Median triage",
+    topology: "Network topology",
+    liveStream: "Live incident stream",
+    attention: "Requires attention",
+    confidence: "confidence",
+    incidentTitle: "Intermittent connectivity — Ottawa Centre",
+    detected: "Detected 14 minutes ago",
+    causalGraph: "Causal evidence graph",
+    aiInvestigation: "AI investigation",
+    probableCause: "Probable root cause",
+    rationale: "37 reports overlap with packet-loss and latency anomalies on NODE-17 across the same service area.",
+    supportingEvidence: "Supporting evidence",
+    relatedReports: "37 related reports",
+    packetLossEvidence: "Packet loss rose from 1% to 21%",
+    topologyEvidence: "3 affected services depend on NODE-17",
+    remediation: "Controlled remediation",
+    action: "Simulate traffic reroute",
+    risk: "Medium risk",
+    expectedEffect: "Expected to restore service for ~1,284 users",
+    approve: "Approve simulated reroute",
+    reject: "Reject proposal",
+    timeline: "Incident timeline",
+    serviceStatus: "Your service",
+    reportProblem: "Report a problem",
+    reportHint: "Tell us what you are experiencing. We will connect your report to a known incident when possible.",
+    speak: "Speak",
+    type: "Type",
+    quick: "Quick diagnostic",
+    nearby: "Nearby service incident",
+    degradation: "Internet degradation",
+    investigating: "Investigating",
+    affectedToo: "I'm affected too",
+    location: "Ottawa Centre",
+    sendReport: "Send report",
+    placeholder: "Describe what is happening…",
+    received: "Report received",
+    receipt: "Reference CMP-10042",
+    status: "Status",
+    report: "Report",
+    activity: "Activity",
+    profile: "Profile"
+  },
+  fr: {
+    tagline: "Du signalement à la cause racine, jusqu’à une résolution sécurisée.",
+    openOps: "Ouvrir le centre d’opérations",
+    openCitizen: "Ouvrir le portail citoyen",
+    heroEyebrow: "Opérations de service assistées par IA",
+    heroTitleA: "Transformer des symptômes dispersés en",
+    heroTitleB: "un incident explicable.",
+    heroBody: "ServiceGraph corrèle les signalements avec la télémétrie d’infrastructure, identifie les causes racines probables et maintient les actions sensibles sous contrôle humain.",
+    overview: "Vue d’ensemble",
+    incidents: "Incidents",
+    network: "Réseau",
+    reports: "Signalements",
+    analytics: "Analytique",
+    audit: "Audit",
+    live: "En direct",
+    commandCenter: "Centre de commande des opérations",
+    globalHealth: "Santé globale du service",
+    operational: "Opérationnel",
+    activeIncidents: "Incidents actifs",
+    affectedUsers: "Utilisateurs affectés",
+    medianTriage: "Triage médian",
+    topology: "Topologie réseau",
+    liveStream: "Flux d’incidents en direct",
+    attention: "Attention requise",
+    confidence: "de confiance",
+    incidentTitle: "Connectivité intermittente — Centre d’Ottawa",
+    detected: "Détecté il y a 14 minutes",
+    causalGraph: "Graphe causal des preuves",
+    aiInvestigation: "Investigation IA",
+    probableCause: "Cause racine probable",
+    rationale: "37 signalements coïncident avec des anomalies de perte de paquets et de latence sur NODE-17 dans la même zone de service.",
+    supportingEvidence: "Preuves à l’appui",
+    relatedReports: "37 signalements liés",
+    packetLossEvidence: "Perte de paquets passée de 1 % à 21 %",
+    topologyEvidence: "3 services affectés dépendent de NODE-17",
+    remediation: "Remédiation contrôlée",
+    action: "Simuler le reroutage du trafic",
+    risk: "Risque moyen",
+    expectedEffect: "Devrait rétablir le service pour ~1 284 utilisateurs",
+    approve: "Approuver le reroutage simulé",
+    reject: "Rejeter la proposition",
+    timeline: "Chronologie de l’incident",
+    serviceStatus: "Votre service",
+    reportProblem: "Signaler un problème",
+    reportHint: "Décrivez ce que vous observez. Nous relierons votre signalement à un incident connu lorsque c’est possible.",
+    speak: "Parler",
+    type: "Écrire",
+    quick: "Diagnostic rapide",
+    nearby: "Incident de service à proximité",
+    degradation: "Dégradation Internet",
+    investigating: "En investigation",
+    affectedToo: "Je suis aussi affecté",
+    location: "Centre d’Ottawa",
+    sendReport: "Envoyer le signalement",
+    placeholder: "Décrivez ce qui se passe…",
+    received: "Signalement reçu",
+    receipt: "Référence CMP-10042",
+    status: "État",
+    report: "Signaler",
+    activity: "Activité",
+    profile: "Profil"
+  }
+} as const;
+
+type Keys = keyof typeof dictionary.en;
+type ContextValue = { locale: Locale; setLocale: (value: Locale) => void; t: (key: Keys) => string };
+
+const LocaleContext = createContext<ContextValue | null>(null);
+
+export function LocaleProvider({ children }: { children: React.ReactNode }) {
+  const [locale, setLocaleState] = useState<Locale>("en");
+
+  useEffect(() => {
+    const saved = window.localStorage.getItem("servicegraph.locale");
+    const initial: Locale = saved === "fr" || saved === "en"
+      ? saved
+      : navigator.language.toLowerCase().startsWith("fr") ? "fr" : "en";
+    setLocaleState(initial);
+    document.documentElement.lang = initial;
+  }, []);
+
+  const setLocale = (value: Locale) => {
+    setLocaleState(value);
+    window.localStorage.setItem("servicegraph.locale", value);
+    document.documentElement.lang = value;
+  };
+
+  const value = useMemo(() => ({
+    locale,
+    setLocale,
+    t: (key: Keys) => dictionary[locale][key]
+  }), [locale]);
+
+  return <LocaleContext.Provider value={value}>{children}</LocaleContext.Provider>;
+}
+
+export function useLocale() {
+  const context = useContext(LocaleContext);
+  if (!context) throw new Error("useLocale must be used inside LocaleProvider");
+  return context;
+}
+
+export function LanguageToggle() {
+  const { locale, setLocale } = useLocale();
+  return (
+    <div className="language-toggle" aria-label="Language / Langue">
+      <button type="button" className={locale === "fr" ? "active" : ""} onClick={() => setLocale("fr")} aria-pressed={locale === "fr"}>FR</button>
+      <span>|</span>
+      <button type="button" className={locale === "en" ? "active" : ""} onClick={() => setLocale("en")} aria-pressed={locale === "en"}>EN</button>
+    </div>
+  );
+}
