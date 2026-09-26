@@ -1,4 +1,4 @@
-import type { CreateReportRequest } from "../../../packages/contracts/dist/index.js";
+import type { CreateReportRequest, CreateReportResponse } from "../../../packages/contracts/dist/index.js";
 import { ApiClientError, createCitizenReport } from "@/lib/api";
 
 const STORAGE_KEY = "servicegraph.pendingReports.v1";
@@ -11,7 +11,7 @@ export type QueuedReport = {
 };
 
 export type FlushResult = {
-  sentReportIds: string[];
+  sentReceipts: CreateReportResponse["receipt"][];
   remaining: number;
 };
 
@@ -40,12 +40,12 @@ export function enqueueReport(input: CreateReportRequest, idempotencyKey = crypt
 export async function flushReportQueue(): Promise<FlushResult> {
   const queue = getQueuedReports();
   const remaining: QueuedReport[] = [];
-  const sentReportIds: string[] = [];
+  const sentReceipts: CreateReportResponse["receipt"][] = [];
 
   for (const item of queue) {
     try {
       const response = await createCitizenReport(item.input, item.idempotencyKey);
-      sentReportIds.push(response.receipt.reportId);
+      sentReceipts.push(response.receipt);
     } catch (error) {
       remaining.push(item);
       if (!(error instanceof ApiClientError) || error.code !== "NETWORK_ERROR") {
@@ -56,7 +56,7 @@ export async function flushReportQueue(): Promise<FlushResult> {
   }
 
   window.localStorage.setItem(STORAGE_KEY, JSON.stringify(remaining));
-  return { sentReportIds, remaining: remaining.length };
+  return { sentReceipts, remaining: remaining.length };
 }
 
 function isQueuedReport(value: unknown): value is QueuedReport {
