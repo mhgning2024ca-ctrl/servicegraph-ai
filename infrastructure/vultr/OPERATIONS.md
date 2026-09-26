@@ -28,27 +28,30 @@ host UFW does not replace the provider firewall.
 
 Copy `infrastructure/env/production.env.example` to a host-only path outside the
 Git clone, populate it out-of-band, then apply mode `0600`. Never print or commit
-the populated file. Managed TigerData must require TLS according to its supplied
-`DATABASE_URL` and accepts outbound connections from the application.
+the populated file. The deploy and rollback scripts validate required variable
+names without printing their values. Managed TigerData must require TLS according
+to its supplied `DATABASE_URL` and accepts outbound connections from the
+application.
 
 Unavailable optional providers must remain explicit degraded states; do not put
 fake credentials in the environment to force a success state.
 
 ## DNS and TLS
 
-After the public IPv4 is stable, a human creates the DNS A record. Render
-`infrastructure/reverse-proxy/Caddyfile.template` only after the integrated web
-and API internal upstreams are documented. Caddy uses `PUBLIC_APP_URL` as the
-site address and obtains TLS after DNS propagation.
+After the public IPv4 is stable, a human creates the DNS A record. Caddy uses
+`PUBLIC_APP_URL` as the site address and obtains TLS after DNS propagation.
 
 Do not block local/integration work on DNS. Production readiness and HSTS should
 be claimed only after HTTPS is confirmed.
 
 ## Deployment
 
-The integration owner must first supply a canonical Compose file whose only
-published ports are 80 and 443 on Caddy. Web, API and database ports remain on a
-private Compose network; the managed database is outbound-only.
+The canonical Compose file publishes only 80 and 443 on Caddy. Web and API stay
+on the private Compose network; the managed database is outbound-only. Before
+the API can start, the `database-init` container takes a database advisory lock,
+applies the committed migration baseline, and loads the idempotent deterministic
+topology seed. It records committed-file checksums in the external database and
+refuses to silently apply a changed prior migration/seed.
 
 From a clean clone as the deployment user:
 
@@ -60,8 +63,9 @@ infrastructure/vultr/deploy.sh \
   --public-url https://servicegraph.example.org
 ```
 
-The deploy command records the exact previous/current commit, updates `main`
-with `--ff-only`, validates Compose, builds, starts and checks:
+The deploy command records an append-only local attempt history plus exact
+previous/current commit SHA and image tag, validates Compose, builds images from
+that checked-out commit, prepares the external database, starts and checks:
 
 - `GET /v1/health/live`
 - `GET /v1/health/ready`
@@ -88,7 +92,8 @@ infrastructure/vultr/rollback.sh \
   --public-url https://servicegraph.example.org
 ```
 
-Rollback checks out the prior commit detached, rebuilds, restarts and repeats
+Rollback checks out the prior commit detached, requires the SHA-tagged images
+already retained locally, restarts without rebuilding and repeats
 liveness/readiness checks. It never rewrites Git history. After stabilization,
 investigate on a feature branch and redeploy `main`; do not patch the only demo
 host directly.

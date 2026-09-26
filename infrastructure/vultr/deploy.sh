@@ -5,9 +5,10 @@ usage() {
   cat <<'USAGE'
 Usage: ./deploy.sh --env-file PATH --compose-file PATH --public-url URL [--state-dir PATH] [--ref GIT_REF]
 
-Deploys a validated Git ref (default: origin/main), records previous/new commit
-SHAs, validates Compose, builds, starts, and checks canonical health endpoints.
-Run as the non-root deployment user from a clean repository clone.
+Deploys a validated Git ref (default: origin/main), records the attempted and
+live exact commit/image identities, prepares the external database, then checks
+canonical health endpoints. Run as the non-root deployment user from a clean
+repository clone.
 USAGE
 }
 
@@ -56,6 +57,7 @@ if [[ "$(stat -c '%a' "${env_file}")" != "600" ]]; then
   echo "Refusing deployment: the populated env file must have mode 0600." >&2
   exit 77
 fi
+"${repo_root}/infrastructure/vultr/validate-runtime-env.sh" "${env_file}" "${public_url}"
 if [[ -n "$(git status --porcelain)" ]]; then
   echo "Refusing deployment from a dirty worktree." >&2
   exit 1
@@ -82,20 +84,36 @@ else
   git checkout --detach "${resolved_ref}"
 fi
 new_sha="$(git rev-parse HEAD)"
+image_tag="${new_sha}"
 
 install -d -m 0700 "${state_dir}"
-printf '%s\n' "${previous_sha}" > "${state_dir}/previous-sha"
-printf '%s\n' "${new_sha}" > "${state_dir}/current-sha"
-chmod 0600 "${state_dir}/previous-sha" "${state_dir}/current-sha"
+touch "${state_dir}/history.tsv"
+chmod 0600 "${state_dir}/history.tsv"
+printf '%s\t%s\t%s\t%s\n' "$(date --utc +%FT%TZ)" deploy "${new_sha}" "PENDING" >> "${state_dir}/history.tsv"
+
+on_error() {
+  local status="$?"
+  printf '%s\t%s\t%s\t%s\n' "$(date --utc +%FT%TZ)" deploy "${new_sha}" "FAILED" >> "${state_dir}/history.tsv"
+  exit "${status}"
+}
+trap on_error ERR
 
 compose=(docker compose --env-file "${env_file}" -f "${compose_file}")
-"${compose[@]}" config --quiet
-"${compose[@]}" build --pull
-"${compose[@]}" up -d --remove-orphans
-"${compose[@]}" ps
+compose_run() { DEPLOYMENT_SHA="${image_tag}" "${compose[@]}" "$@"; }
+compose_run config --quiet
+compose_run build --pull
+compose_run up -d database-init
+compose_run up -d --remove-orphans
+compose_run ps
 
 base_url="${public_url%/}"
 curl --fail --show-error --silent --retry 5 --retry-delay 2 "${base_url}/v1/health/live" >/dev/null
 curl --fail --show-error --silent --retry 5 --retry-delay 2 "${base_url}/v1/health/ready" >/dev/null
 
-echo "Deployment ${new_sha} is live and passed liveness/readiness checks."
+printf '%s\n' "${previous_sha}" > "${state_dir}/previous-sha"
+printf '%s\n' "${new_sha}" > "${state_dir}/current-sha"
+printf '%s\n' "${image_tag}" > "${state_dir}/current-image-tag"
+chmod 0600 "${state_dir}/previous-sha" "${state_dir}/current-sha" "${state_dir}/current-image-tag"
+printf '%s\t%s\t%s\t%s\n' "$(date --utc +%FT%TZ)" deploy "${new_sha}" "LIVE" >> "${state_dir}/history.tsv"
+trap - ERR
+echo "Deployment ${new_sha} (image tag ${image_tag}) is live and passed database, liveness, and readiness checks."
