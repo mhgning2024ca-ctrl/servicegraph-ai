@@ -95,7 +95,15 @@ const dictionary = {
     liveData: "Live API data",
     demoSnapshot: "Deterministic demo snapshot",
     execution: "Execute remediation",
-    verification: "Verify recovery"
+    verification: "Verify recovery",
+    signIn: "Sign in with Auth0",
+    runAnalysis: "Run incident analysis",
+    analysisQueued: "Analysis accepted by the backend",
+    createProposal: "Create controlled remediation proposal",
+    proposalCreated: "Remediation proposal confirmed by the backend",
+    backendConfirmed: "Operation confirmed by the backend",
+    publishRecovery: "Publish verified recovery update",
+    communicationCreated: "Recovery communication confirmed by the backend"
   },
   fr: {
     tagline: "Du signalement à la cause racine, jusqu’à une résolution sécurisée.",
@@ -187,7 +195,15 @@ const dictionary = {
     liveData: "Données API réelles",
     demoSnapshot: "Instantané de démo déterministe",
     execution: "Exécuter la remédiation",
-    verification: "Vérifier le rétablissement"
+    verification: "Vérifier le rétablissement",
+    signIn: "Se connecter avec Auth0",
+    runAnalysis: "Lancer l’analyse de l’incident",
+    analysisQueued: "Analyse acceptée par le backend",
+    createProposal: "Créer une proposition de remédiation contrôlée",
+    proposalCreated: "Proposition de remédiation confirmée par le backend",
+    backendConfirmed: "Opération confirmée par le backend",
+    publishRecovery: "Publier le rétablissement vérifié",
+    communicationCreated: "Communication de rétablissement confirmée par le backend"
   }
 } as const;
 
