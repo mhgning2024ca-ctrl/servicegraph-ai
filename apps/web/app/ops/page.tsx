@@ -33,7 +33,7 @@ export default function OpsPage() {
           <article>
             <span className="metric-icon danger"><Siren size={18}/></span>
             <div><small>{t("activeIncidents")}</small><strong>13</strong></div>
-            <p>2 Critical · 4 Major · 7 Minor</p>
+            <p>2 {t("critical")} · 4 Major · 7 Minor</p>
           </article>
           <article>
             <span className="metric-icon"><Users size={18}/></span>
@@ -43,7 +43,7 @@ export default function OpsPage() {
           <article>
             <span className="metric-icon ai"><Activity size={18}/></span>
             <div><small>{t("medianTriage")}</small><strong>4.2 min</strong></div>
-            <p>Demo scenario window</p>
+            <p>{t("demoScenarioWindow")}</p>
           </article>
         </section>
 
@@ -55,9 +55,9 @@ export default function OpsPage() {
             </div>
             <Topology />
             <div className="telemetry-strip">
-              <span><b>Packet loss</b>21%</span>
-              <span><b>Latency</b>242 ms</span>
-              <span><b>Latest</b>12 s</span>
+              <span><b>{t("packetLoss")}</b>21%</span>
+              <span><b>{t("latency")}</b>242 ms</span>
+              <span><b>{t("latest")}</b>12 s</span>
             </div>
           </article>
 
