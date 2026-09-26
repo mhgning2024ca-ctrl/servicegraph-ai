@@ -33,7 +33,7 @@ export default function OpsPage() {
           <article>
             <span className="metric-icon danger"><Siren size={18}/></span>
             <div><small>{t("activeIncidents")}</small><strong>13</strong></div>
-            <p>2 {t("critical")} · 4 Major · 7 Minor</p>
+            <p>2 {t("critical")} · 4 {t("major")} · 7 {t("minor")}</p>
           </article>
           <article>
             <span className="metric-icon"><Users size={18}/></span>
