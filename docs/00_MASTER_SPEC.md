@@ -93,6 +93,35 @@ Required capabilities:
 - customer-communication preview and dispatch;
 - audit trail.
 
+
+## 3.3 Bilingual requirement — French / English
+
+ServiceGraph AI is bilingual by default. **French and English are mandatory product languages for both the citizen PWA and the operations/NOC interface.**
+
+Canonical language codes:
+
+```text
+fr
+ en
+```
+
+UI language selector must be visible as:
+
+```text
+FR | EN
+```
+
+Rules:
+
+- the selector is available on public/citizen and authenticated operations surfaces;
+- switching language must update all user-facing navigation, labels, buttons, forms, validation messages, status labels, empty/error/degraded states, accessibility labels, notifications, incident communication previews and demo copy;
+- technical identifiers such as `NODE-17`, `INC-2048`, API paths, raw metric names and code remain unchanged;
+- user-generated text is never silently translated and overwritten; translated/AI-generated variants are stored/displayed separately with provenance;
+- the selected language persists across navigation and refresh;
+- if browser preference is supported, it is only an initial default and never replaces the explicit selector;
+- no screen may mix French and English accidentally except for canonical technical identifiers or content intentionally shown in original language;
+- fallback locale is English only when a translation key is missing, and missing keys must be visible during development/testing rather than silently accepted.
+
 ## 4. User roles
 
 | Role | Purpose | Minimum permissions |
