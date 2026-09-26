@@ -17,6 +17,11 @@ export {
 } from "./auth/authorization.js";
 export { InMemoryBackendRepository } from "./mocks/in-memory-backend.js";
 export { IncidentAnalysisOrchestrator } from "./modules/incidents/analysis-orchestrator.js";
+export {
+  createRuntimeAiIncidentAnalysisAdapter,
+  RuntimeAiIncidentAnalysisAdapter,
+  type RuntimeAiAdapterOptions,
+} from "./modules/incidents/runtime-ai-adapter.js";
 export { RemediationOrchestrator } from "./modules/remediation/remediation-orchestrator.js";
 export { ReportService, type ReportPostProcessor } from "./modules/reports/report-service.js";
 export type {
@@ -26,6 +31,7 @@ export type {
   IncidentAnalysisResult,
   IntegrationResult,
   SimulatorExecutionAdapter,
+  TelemetryStore,
   VerificationAdapter,
 } from "./ports/backend-ports.js";
 export {

@@ -3,13 +3,24 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "exports": "./src/index.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "dependencies": {
+    "@servicegraph/contracts": "file:../contracts",
+    "pg": "^8.23.0"
+  },
   "scripts": {
+    "build": "tsc --noEmit false --outDir dist --rootDir src --declaration",
     "typecheck": "tsc --noEmit",
     "test": "node --import tsx --test src/*.test.ts"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
+    "@types/pg": "^8.23.1",
     "tsx": "^4.19.0",
     "typescript": "^5.7.0"
   }

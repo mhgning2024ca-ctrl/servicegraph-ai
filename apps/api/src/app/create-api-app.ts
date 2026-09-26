@@ -16,6 +16,7 @@ import { registerCommunicationRoutes } from "../modules/communications/routes.js
 import { registerHealthRoutes } from "../modules/health/routes.js";
 import { IncidentAnalysisOrchestrator } from "../modules/incidents/analysis-orchestrator.js";
 import { registerIncidentRoutes } from "../modules/incidents/full-routes.js";
+import { createRuntimeAiIncidentAnalysisAdapter } from "../modules/incidents/runtime-ai-adapter.js";
 import { RemediationOrchestrator } from "../modules/remediation/remediation-orchestrator.js";
 import { registerRemediationRoutes } from "../modules/remediation/routes.js";
 import {
@@ -24,11 +25,15 @@ import {
 } from "../modules/reports/report-service.js";
 import { registerReportRoutes } from "../modules/reports/routes.js";
 import { registerSimulatorRoutes } from "../modules/simulator/routes.js";
+import { registerTelemetryRoutes } from "../modules/telemetry/routes.js";
+import { registerPublicRoutes } from "../modules/public/routes.js";
+import { registerVoiceRoutes } from "../modules/voice/routes.js";
 import type {
   BackendRepository,
   IncidentAnalysisAdapter,
   ScenarioRuntime,
   SimulatorExecutionAdapter,
+  TelemetryStore,
   VerificationAdapter,
 } from "../ports/backend-ports.js";
 import {
@@ -52,6 +57,7 @@ export interface ApiDependencies {
   simulator: SimulatorExecutionAdapter;
   verifier: VerificationAdapter;
   scenarioRuntime: ScenarioRuntime;
+  telemetry: TelemetryStore;
 }
 
 export interface CreateApiAppOptions extends ApiInfrastructureOptions {
@@ -97,14 +103,18 @@ export async function createApiApp(
   const events = options.dependencies?.events ?? new InMemoryOperationalEventBus();
   const idempotency =
     options.dependencies?.idempotency ?? new InMemoryIdempotencyStore();
+  // A deterministic analyzer is only used when explicitly injected (tests or
+  // a dedicated mock composition). The default server path reports Gemini
+  // unavailability/degradation rather than fabricating a hypothesis.
   const incidentAnalysis =
-    options.dependencies?.incidentAnalysis ?? new DeterministicIncidentAnalysisAdapter();
+    options.dependencies?.incidentAnalysis ?? createRuntimeAiIncidentAnalysisAdapter(repository);
   const simulator =
     options.dependencies?.simulator ?? new DeterministicSimulatorAdapter();
   const verifier =
     options.dependencies?.verifier ?? new DeterministicVerificationAdapter();
   const scenarioRuntime =
     options.dependencies?.scenarioRuntime ?? new DeterministicScenarioRuntime();
+  const telemetry = options.dependencies?.telemetry ?? repository as unknown as TelemetryStore;
 
   const audit = new AuditService(repository);
   const reportService = new ReportService(
@@ -125,11 +135,14 @@ export async function createApiApp(
   );
 
   registerHealthRoutes(app, repository, authorization);
-  registerReportRoutes(app, reportService);
+  registerReportRoutes(app, reportService, repository, authorization);
   registerIncidentRoutes(app, repository, authorization, analysis);
   registerRemediationRoutes(app, repository, authorization, remediation, events);
   registerCommunicationRoutes(app, repository, authorization, events, audit);
   registerSimulatorRoutes(app, scenarioRuntime, authorization);
+  registerTelemetryRoutes(app, telemetry, authorization, events);
+  registerPublicRoutes(app, repository, events);
+  registerVoiceRoutes(app);
   registerSseRoute(app, events, authorization);
   return app;
 }

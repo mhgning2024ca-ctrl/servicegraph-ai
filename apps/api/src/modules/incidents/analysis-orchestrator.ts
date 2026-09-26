@@ -33,9 +33,9 @@ export class IncidentAnalysisOrchestrator {
         payload: { provider: result.provider, errorCode: result.errorCode ?? "UNAVAILABLE" },
       });
       throw new ApiError({
-        code: "SERVICE_UNAVAILABLE",
+        code: result.errorCode,
         statusCode: 503,
-        message: "Incident analysis is currently unavailable.",
+        message: `Incident analysis provider ${result.provider} is degraded or unavailable.`,
       });
     }
 
