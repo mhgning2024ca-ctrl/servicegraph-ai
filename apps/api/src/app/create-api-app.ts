@@ -1,3 +1,4 @@
+import cors from "@fastify/cors";
 import Fastify, { type FastifyInstance } from "fastify";
 
 import {
@@ -56,6 +57,7 @@ export interface ApiDependencies {
 
 export interface CreateApiAppOptions extends ApiInfrastructureOptions {
   logger?: boolean;
+  allowedOrigins?: readonly string[];
   dependencies?: Partial<ApiDependencies>;
 }
 
@@ -67,6 +69,14 @@ export async function createApiApp(
     bodyLimit: 1_048_576,
   });
   await registerApiInfrastructure(app, options);
+  const allowedOrigins = new Set(options.allowedOrigins ?? ["http://localhost:3000"]);
+  await app.register(cors, {
+    origin(origin, callback) {
+      if (!origin || allowedOrigins.has(origin)) return callback(null, true);
+      return callback(null, false);
+    },
+    credentials: true,
+  });
 
   const repository = options.dependencies?.repository ?? new InMemoryBackendRepository();
   const authorization =
