@@ -1,4 +1,3 @@
-import cors from "@fastify/cors";
 import Fastify, { type FastifyInstance } from "fastify";
 
 import {
@@ -70,12 +69,26 @@ export async function createApiApp(
   });
   await registerApiInfrastructure(app, options);
   const allowedOrigins = new Set(options.allowedOrigins ?? ["http://localhost:3000"]);
-  await app.register(cors, {
-    origin(origin, callback) {
-      if (!origin || allowedOrigins.has(origin)) return callback(null, true);
-      return callback(null, false);
-    },
-    credentials: true,
+  app.addHook("onRequest", async (request, reply) => {
+    const origin = request.headers.origin;
+    if (origin && !allowedOrigins.has(origin)) {
+      return reply.status(403).send({
+        error: {
+          code: "CORS_FORBIDDEN",
+          message: "Origin is not allowed.",
+          details: [],
+          correlationId: request.correlationId,
+        },
+      });
+    }
+    if (origin) {
+      reply.header("Access-Control-Allow-Origin", origin);
+      reply.header("Vary", "Origin");
+      reply.header("Access-Control-Allow-Credentials", "true");
+      reply.header("Access-Control-Allow-Headers", "Authorization, Content-Type, Idempotency-Key, X-Correlation-Id");
+      reply.header("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
+    }
+    if (request.method === "OPTIONS") return reply.status(204).send();
   });
 
   const repository = options.dependencies?.repository ?? new InMemoryBackendRepository();
