@@ -56,3 +56,42 @@ test("PostgresBackendRepository readiness requires the migrated report and telem
   assert.equal(await ready.isReady(), true);
   assert.equal(await missing.isReady(), false);
 });
+
+test("PostgresBackendRepository binds correlation incident and report-link values", async () => {
+  const calls: Array<{ text: string; values?: readonly unknown[] }> = [];
+  const reportRow = {
+    id: reportId, client_report_id: clientReportId, created_at: "2026-09-26T12:00:00.000Z",
+    channel: "WEB_TEXT", state: "CORRELATED", report_text: "Connectivity is intermittent",
+    transcript: null, audio_asset_id: null, service_id: null, area_code: "OTT-CENTRETOWN",
+    latitude: null, longitude: null, symptom_codes: [], citizen_subject: null,
+    correlated_incident_id: "41414141-4141-4414-8414-414141414141", source_language: "en",
+  };
+  const client: PostgresClient = {
+    async query(query) {
+      calls.push(query);
+      return { rows: query.text.includes("UPDATE customer_reports") ? [reportRow] : [] };
+    },
+  };
+  const repository = new PostgresBackendRepository(client);
+  const incidentId = "41414141-4141-4414-8414-414141414141";
+  const title = "Correlated service disruption — OTT-CENTRETOWN";
+  await repository.createIncident({
+    id: incidentId, incidentNumber: "INC-41414141", title, status: "DETECTED", severity: "CRITICAL",
+    createdAt: "2026-09-26T12:00:00.000Z", updatedAt: "2026-09-26T12:00:00.000Z",
+    startedAt: "2026-09-26T12:00:00.000Z", resolvedAt: null, affectedUsersEstimate: 1,
+    affectedServiceIds: [], affectedAreaCodes: ["OTT-CENTRETOWN"], probableRootNodeId: nodeId,
+    rootCauseConfidence: null,
+  });
+  const linked = await repository.linkReportToIncident(
+    reportId, incidentId, 0.8, "2026-09-26T12:00:00.000Z",
+  );
+
+  assert.equal(linked.correlatedIncidentId, incidentId);
+  const [incidentInsert, reportUpdate, reportLink] = calls;
+  assert.ok(incidentInsert?.text.includes("$1::uuid"));
+  assert.doesNotMatch(incidentInsert!.text, new RegExp(title));
+  assert.ok(reportUpdate?.text.includes("$2::uuid"));
+  assert.doesNotMatch(reportUpdate!.text, new RegExp(incidentId));
+  assert.ok(reportLink?.text.includes("$3::double precision"));
+  assert.equal(reportLink?.values?.[2], 0.8);
+});

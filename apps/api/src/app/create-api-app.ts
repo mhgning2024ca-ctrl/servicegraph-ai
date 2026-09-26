@@ -23,6 +23,7 @@ import {
   ReportService,
   type ReportPostProcessor,
 } from "../modules/reports/report-service.js";
+import { DeterministicReportCorrelationProcessor } from "../modules/reports/report-correlation-processor.js";
 import { registerReportRoutes } from "../modules/reports/routes.js";
 import { registerSimulatorRoutes } from "../modules/simulator/routes.js";
 import { registerTelemetryRoutes } from "../modules/telemetry/routes.js";
@@ -117,12 +118,16 @@ export async function createApiApp(
   const telemetry = options.dependencies?.telemetry ?? repository as unknown as TelemetryStore;
 
   const audit = new AuditService(repository);
+  // The server composition always enables deterministic post-persistence
+  // correlation. Tests may still inject a narrower processor where needed.
+  const reportPostProcessor = options.dependencies?.reportPostProcessor ??
+    new DeterministicReportCorrelationProcessor(repository, events, audit);
   const reportService = new ReportService(
     repository,
     idempotency,
     events,
     audit,
-    options.dependencies?.reportPostProcessor,
+    reportPostProcessor,
   );
   const analysis = new IncidentAnalysisOrchestrator(repository, incidentAnalysis, events, audit);
   const remediation = new RemediationOrchestrator(

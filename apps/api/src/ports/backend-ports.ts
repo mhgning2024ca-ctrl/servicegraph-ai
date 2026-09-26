@@ -38,14 +38,43 @@ export interface IncidentListFilter {
   cursor?: string | undefined;
 }
 
+/**
+ * Persisted facts used by the deterministic report-correlation step.  This is
+ * deliberately an internal port type: it does not add or alter an HTTP or
+ * shared-domain contract.
+ */
+export interface CorrelationTopologyDependency {
+  serviceId: string;
+  nodeId: string;
+  nodeCode: string;
+  nodeStatus: string;
+  areaCode: string | null;
+}
+
+export interface ReportCorrelationContext {
+  report: CustomerReport;
+  relatedReports: readonly CustomerReport[];
+  topology: readonly CorrelationTopologyDependency[];
+  telemetry: readonly TelemetrySample[];
+}
+
 export interface BackendRepository {
   isReady(): Promise<boolean>;
 
   createReport(report: CustomerReport): Promise<CustomerReport>;
   findReport(reportId: string): Promise<CustomerReport | null>;
+  loadReportCorrelationContext(reportId: string): Promise<ReportCorrelationContext | null>;
+  linkReportToIncident(
+    reportId: string,
+    incidentId: string,
+    correlationScore: number,
+    correlatedAt: string,
+  ): Promise<CustomerReport>;
 
   listIncidents(filter: IncidentListFilter): Promise<readonly IncidentSummary[]>;
   findIncident(incidentId: string): Promise<IncidentSummary | null>;
+  findActiveIncidentByRootNode(nodeId: string): Promise<IncidentSummary | null>;
+  createIncident(incident: IncidentSummary): Promise<void>;
   updateIncident(incident: IncidentSummary): Promise<void>;
 
   findIncidentGraph(incidentId: string): Promise<IncidentGraph | null>;

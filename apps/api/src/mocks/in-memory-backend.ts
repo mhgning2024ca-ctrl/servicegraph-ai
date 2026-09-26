@@ -16,8 +16,10 @@ import type { TelemetrySample } from "@servicegraph/contracts";
 import type {
   AuditEventInput,
   BackendRepository,
+  CorrelationTopologyDependency,
   IncidentListFilter,
   IntegrationHealthRecord,
+  ReportCorrelationContext,
   TelemetryStore,
 } from "../ports/backend-ports.js";
 
@@ -36,6 +38,8 @@ export class InMemoryBackendRepository implements BackendRepository, TelemetrySt
   readonly integrationHealth = new Map<string, IntegrationHealthRecord>();
   readonly auditEvents: AuditEventInput[] = [];
   readonly telemetrySamples = new Map<string, TelemetrySample>();
+  readonly topologyDependencies: CorrelationTopologyDependency[] = [];
+  readonly reportCorrelations = new Map<string, { incidentId: string; score: number }>();
 
   constructor(private ready = true) {}
 
@@ -56,6 +60,47 @@ export class InMemoryBackendRepository implements BackendRepository, TelemetrySt
     return this.reports.get(reportId) ?? null;
   }
 
+  async loadReportCorrelationContext(reportId: string): Promise<ReportCorrelationContext | null> {
+    const report = await this.findReport(reportId);
+    if (!report) return null;
+    const referenceAt = new Date(report.createdAt).getTime();
+    const inWindow = (value: string) => Math.abs(new Date(value).getTime() - referenceAt) <= 30 * 60_000;
+    const topology = this.topologyDependencies.filter((dependency) =>
+      dependency.serviceId === report.serviceId ||
+      (report.serviceId === null && dependency.areaCode === report.areaCode),
+    );
+    const nodeIds = new Set(topology.map((dependency) => dependency.nodeId));
+    return {
+      report,
+      relatedReports: [...this.reports.values()].filter((candidate) =>
+        candidate.id !== report.id &&
+        inWindow(candidate.createdAt) &&
+        ((report.serviceId !== null && candidate.serviceId === report.serviceId) ||
+          (report.areaCode !== null && candidate.areaCode === report.areaCode)),
+      ),
+      topology,
+      telemetry: [...this.telemetrySamples.values()].filter((sample) =>
+        nodeIds.has(sample.nodeId) &&
+        inWindow(sample.observedAt) &&
+        isAnomalousTelemetry(sample),
+      ),
+    };
+  }
+
+  async linkReportToIncident(
+    reportId: string,
+    incidentId: string,
+    correlationScore: number,
+    _correlatedAt: string,
+  ): Promise<CustomerReport> {
+    const report = this.reports.get(reportId);
+    if (!report) throw new Error("Report was not found for correlation.");
+    const correlated = { ...report, state: "CORRELATED" as const, correlatedIncidentId: incidentId };
+    this.reports.set(reportId, correlated);
+    this.reportCorrelations.set(reportId, { incidentId, score: correlationScore });
+    return correlated;
+  }
+
   async listIncidents(filter: IncidentListFilter): Promise<readonly IncidentSummary[]> {
     let values = [...this.incidents.values()];
     if (filter.status) values = values.filter((item) => item.status === filter.status);
@@ -68,12 +113,61 @@ export class InMemoryBackendRepository implements BackendRepository, TelemetrySt
     return this.incidents.get(incidentId) ?? null;
   }
 
+  async findActiveIncidentByRootNode(nodeId: string): Promise<IncidentSummary | null> {
+    return [...this.incidents.values()]
+      .filter((incident) => incident.probableRootNodeId === nodeId)
+      .filter((incident) => incident.status !== "RESOLVED" && incident.status !== "CLOSED")
+      .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))[0] ?? null;
+  }
+
+  async createIncident(incident: IncidentSummary): Promise<void> {
+    this.incidents.set(incident.id, incident);
+  }
+
   async updateIncident(incident: IncidentSummary): Promise<void> {
     this.incidents.set(incident.id, incident);
   }
 
   async findIncidentGraph(incidentId: string): Promise<IncidentGraph | null> {
-    return this.graphs.get(incidentId) ?? null;
+    const seeded = this.graphs.get(incidentId);
+    if (seeded) return seeded;
+    const incident = await this.findIncident(incidentId);
+    if (!incident) return null;
+
+    const nodes: IncidentGraph["nodes"] = [];
+    const edges: IncidentGraph["edges"] = [];
+    const addNode = (node: IncidentGraph["nodes"][number]) => {
+      if (!nodes.some((item) => item.id === node.id)) nodes.push(node);
+    };
+    const linkedReports = [...this.reports.values()]
+      .filter((report) => report.correlatedIncidentId === incidentId);
+    for (const report of linkedReports) {
+      addNode({ id: report.id, category: "REPORT", label: "Customer report", status: report.state, metadata: {} });
+      if (report.serviceId) {
+        addNode({ id: report.serviceId, category: "SERVICE", label: report.serviceId, status: null, metadata: {} });
+        edges.push({ id: `report-service:${report.id}`, source: report.id, target: report.serviceId, type: "REPORT_AFFECTS_SERVICE" });
+        for (const dependency of this.topologyDependencies.filter((item) => item.serviceId === report.serviceId)) {
+          addNode({ id: dependency.nodeId, category: "INFRASTRUCTURE_NODE", label: dependency.nodeCode, status: dependency.nodeStatus, metadata: {} });
+          edges.push({ id: `service-node:${report.serviceId}:${dependency.nodeId}`, source: report.serviceId, target: dependency.nodeId, type: "SERVICE_DEPENDS_ON_NODE" });
+        }
+      }
+      if (report.areaCode) {
+        const areaId = `area:${report.areaCode}`;
+        addNode({ id: areaId, category: "AREA", label: report.areaCode, status: null, metadata: {} });
+        edges.push({ id: `report-area:${report.id}`, source: report.id, target: areaId, type: "REPORT_LOCATED_IN_AREA" });
+      }
+    }
+    for (const evidence of await this.listIncidentEvidence(incidentId)) {
+      if (evidence.type !== "TELEMETRY_ANOMALY") continue;
+      const sample = this.telemetrySamples.get(evidence.sourceId);
+      if (!sample) continue;
+      const telemetryId = `telemetry:${sample.id}`;
+      addNode({ id: telemetryId, category: "TELEMETRY_ANOMALY", label: `${sample.metric} ${sample.value}`, status: "ANOMALOUS", metadata: { value: sample.value, unit: sample.unit } });
+      const dependency = this.topologyDependencies.find((item) => item.nodeId === sample.nodeId);
+      addNode({ id: sample.nodeId, category: "INFRASTRUCTURE_NODE", label: dependency?.nodeCode ?? sample.nodeId, status: dependency?.nodeStatus ?? "UNKNOWN", metadata: {} });
+      edges.push({ id: `telemetry-node:${sample.id}`, source: telemetryId, target: sample.nodeId, type: "TELEMETRY_OBSERVED_ON_NODE" });
+    }
+    return { nodes, edges };
   }
 
   async listIncidentEvidence(incidentId: string): Promise<readonly IncidentEvidence[]> {
@@ -157,4 +251,9 @@ export class InMemoryBackendRepository implements BackendRepository, TelemetrySt
   async saveTelemetrySamples(samples: readonly TelemetrySample[]): Promise<void> {
     for (const sample of samples) this.telemetrySamples.set(sample.id, sample);
   }
+}
+
+function isAnomalousTelemetry(sample: TelemetrySample): boolean {
+  return (sample.metric === "LATENCY_MS" && sample.value >= 100) ||
+    (sample.metric === "PACKET_LOSS_PCT" && sample.value >= 5);
 }

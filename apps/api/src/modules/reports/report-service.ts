@@ -62,11 +62,6 @@ export class ReportService {
           correlatedIncidentId: null,
           sourceLanguage: command.input.sourceLanguage,
         });
-        const response = CreateReportResponseSchema.parse({
-          report,
-          receipt: { reportId: report.id, receivedAt: createdAt },
-        });
-
         await this.audit.record({
           correlationId: command.correlationId,
           actorSubject: command.citizenSubject,
@@ -103,7 +98,11 @@ export class ReportService {
             });
           }
         }
-        return response;
+        const processedReport = await this.repository.findReport(report.id) ?? report;
+        return CreateReportResponseSchema.parse({
+          report: processedReport,
+          receipt: { reportId: report.id, receivedAt: createdAt },
+        });
       },
     );
   }

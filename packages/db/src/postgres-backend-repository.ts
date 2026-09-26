@@ -86,6 +86,74 @@ export class PostgresBackendRepository {
     return row ? toReport(row) : null;
   }
 
+  async loadReportCorrelationContext(reportId: string): Promise<{
+    report: CustomerReport;
+    relatedReports: readonly CustomerReport[];
+    topology: readonly { serviceId: string; nodeId: string; nodeCode: string; nodeStatus: string; areaCode: string | null }[];
+    telemetry: readonly TelemetrySample[];
+  } | null> {
+    const report = await this.findReport(reportId);
+    if (!report) return null;
+    const topologyResult = await this.client.query({ text: `
+      SELECT d.service_id, d.node_id, n.code AS node_code, n.status AS node_status, n.area_code
+      FROM service_node_dependencies d
+      JOIN infrastructure_nodes n ON n.id = d.node_id
+      WHERE ($1::uuid IS NOT NULL AND d.service_id = $1::uuid)
+         OR ($1::uuid IS NULL AND $2::text IS NOT NULL AND n.area_code = $2::text)
+      ORDER BY d.service_id, d.node_id
+    `, values: [report.serviceId, report.areaCode] });
+    const topology = topologyResult.rows.map((row) => ({
+      serviceId: string(row.service_id),
+      nodeId: string(row.node_id),
+      nodeCode: string(row.node_code),
+      nodeStatus: string(row.node_status),
+      areaCode: nullableString(row.area_code),
+    }));
+    const relatedResult = await this.client.query({ text: `
+      SELECT ${reportColumns}
+      FROM customer_reports
+      WHERE id <> $1::uuid
+        AND created_at BETWEEN $2::timestamptz - make_interval(mins => 30)
+                           AND $2::timestamptz + make_interval(mins => 30)
+        AND (($3::uuid IS NOT NULL AND service_id = $3::uuid)
+          OR ($4::text IS NOT NULL AND area_code = $4::text))
+      ORDER BY created_at ASC, id ASC
+    `, values: [report.id, report.createdAt, report.serviceId, report.areaCode] });
+    const nodeIds = topology.map((dependency) => dependency.nodeId);
+    const telemetry = nodeIds.length === 0 ? [] : (await this.client.query({ text: `
+      SELECT id,node_id,observed_at,metric,value,unit,source,scenario_id
+      FROM telemetry_samples
+      WHERE node_id = ANY($1::uuid[])
+        AND observed_at BETWEEN $2::timestamptz - make_interval(mins => 30)
+                            AND $2::timestamptz + make_interval(mins => 30)
+        AND ((metric = 'LATENCY_MS' AND value >= 100)
+          OR (metric = 'PACKET_LOSS_PCT' AND value >= 5))
+      ORDER BY observed_at ASC, id ASC
+    `, values: [nodeIds, report.createdAt] })).rows.map(toTelemetry);
+    return { report, relatedReports: relatedResult.rows.map(toReport), topology, telemetry };
+  }
+
+  async linkReportToIncident(
+    reportId: string,
+    incidentId: string,
+    correlationScore: number,
+    correlatedAt: string,
+  ): Promise<CustomerReport> {
+    const report = await this.one("correlate report", `
+      UPDATE customer_reports
+      SET state = 'CORRELATED', correlated_incident_id = $2::uuid
+      WHERE id = $1::uuid
+      RETURNING ${reportColumns}
+    `, [reportId, incidentId]);
+    await this.client.query({ text: `
+      INSERT INTO incident_reports (incident_id, report_id, correlation_score, created_at)
+      VALUES ($1::uuid, $2::uuid, $3::double precision, $4::timestamptz)
+      ON CONFLICT (incident_id, report_id) DO UPDATE
+        SET correlation_score = EXCLUDED.correlation_score
+    `, values: [incidentId, reportId, correlationScore, correlatedAt] });
+    return toReport(report);
+  }
+
   async listIncidents(filter: IncidentListFilter): Promise<readonly IncidentSummary[]> {
     const values: unknown[] = [filter.status ?? null, filter.severity ?? null, filter.cursor ?? null, filter.limit];
     const result = await this.client.query({ text: `
@@ -103,6 +171,36 @@ export class PostgresBackendRepository {
   async findIncident(incidentId: string): Promise<IncidentSummary | null> {
     const row = await this.maybeOne(`SELECT ${incidentColumns} FROM incidents i WHERE i.id = $1::uuid`, [incidentId]);
     return row ? toIncident(row) : null;
+  }
+
+  async findActiveIncidentByRootNode(nodeId: string): Promise<IncidentSummary | null> {
+    const row = await this.maybeOne(`
+      SELECT ${incidentColumns}
+      FROM incidents i
+      WHERE i.probable_root_node_id = $1::uuid
+        AND i.status NOT IN ('RESOLVED', 'CLOSED')
+      ORDER BY i.updated_at DESC, i.id DESC
+      LIMIT 1
+    `, [nodeId]);
+    return row ? toIncident(row) : null;
+  }
+
+  async createIncident(incident: IncidentSummary): Promise<void> {
+    await this.client.query({ text: `
+      INSERT INTO incidents (
+        id, incident_number, title, status, severity, created_at, updated_at,
+        started_at, resolved_at, affected_users_estimate, probable_root_node_id,
+        root_cause_confidence
+      ) VALUES (
+        $1::uuid, $2, $3, $4, $5, $6::timestamptz, $7::timestamptz,
+        $8::timestamptz, $9::timestamptz, $10, $11::uuid, $12
+      )
+    `, values: [
+      incident.id, incident.incidentNumber, incident.title, incident.status,
+      incident.severity, incident.createdAt, incident.updatedAt, incident.startedAt,
+      incident.resolvedAt, incident.affectedUsersEstimate,
+      incident.probableRootNodeId, incident.rootCauseConfidence,
+    ] });
   }
 
   async updateIncident(incident: IncidentSummary): Promise<void> {
@@ -134,6 +232,38 @@ export class PostgresBackendRepository {
       const reportId = string(row.id); addNode({ id: reportId, category: "REPORT", label: "Customer report", status: "CORRELATED", metadata: {} });
       if (row.service_id) { const serviceId = string(row.service_id); addNode({ id: serviceId, category: "SERVICE", label: nullableString(row.service_name) ?? serviceId, status: null, metadata: {} }); edges.push({ id: `report-service:${reportId}`, source: reportId, target: serviceId, type: "REPORT_AFFECTS_SERVICE" }); }
       if (row.area_code) { const areaId = `area:${string(row.area_code)}`; addNode({ id: areaId, category: "AREA", label: string(row.area_code), status: null, metadata: {} }); edges.push({ id: `report-area:${reportId}`, source: reportId, target: areaId, type: "REPORT_LOCATED_IN_AREA" }); }
+    }
+    const serviceIds = [...new Set(reports.rows.flatMap((row) => row.service_id ? [string(row.service_id)] : []))];
+    if (serviceIds.length > 0) {
+      const dependencies = await this.client.query({ text: `
+        SELECT d.service_id, n.id AS node_id, n.code, n.status
+        FROM service_node_dependencies d
+        JOIN infrastructure_nodes n ON n.id = d.node_id
+        WHERE d.service_id = ANY($1::uuid[])
+        ORDER BY d.service_id, n.id
+      `, values: [serviceIds] });
+      for (const dependency of dependencies.rows) {
+        const serviceId = string(dependency.service_id);
+        const nodeId = string(dependency.node_id);
+        addNode({ id: nodeId, category: "INFRASTRUCTURE_NODE", label: string(dependency.code), status: string(dependency.status), metadata: {} });
+        edges.push({ id: `service-node:${serviceId}:${nodeId}`, source: serviceId, target: nodeId, type: "SERVICE_DEPENDS_ON_NODE" });
+      }
+    }
+    const telemetry = await this.client.query({ text: `
+      SELECT e.source_id, t.node_id, t.metric, t.value, t.unit, n.code, n.status
+      FROM incident_evidence e
+      JOIN telemetry_samples t ON t.id = e.source_id
+      LEFT JOIN infrastructure_nodes n ON n.id = t.node_id
+      WHERE e.incident_id = $1::uuid AND e.evidence_type = 'TELEMETRY_ANOMALY'
+      ORDER BY e.observed_at ASC, e.id ASC
+    `, values: [incidentId] });
+    for (const sample of telemetry.rows) {
+      const sourceId = string(sample.source_id);
+      const nodeId = string(sample.node_id);
+      const telemetryId = `telemetry:${sourceId}`;
+      addNode({ id: telemetryId, category: "TELEMETRY_ANOMALY", label: `${string(sample.metric)} ${Number(sample.value)}`, status: "ANOMALOUS", metadata: { value: Number(sample.value), unit: string(sample.unit) } });
+      addNode({ id: nodeId, category: "INFRASTRUCTURE_NODE", label: nullableString(sample.code) ?? nodeId, status: nullableString(sample.status) ?? "UNKNOWN", metadata: {} });
+      edges.push({ id: `telemetry-node:${sourceId}`, source: telemetryId, target: nodeId, type: "TELEMETRY_OBSERVED_ON_NODE" });
     }
     if (incident.probableRootNodeId) {
       const node = await this.maybeOne("SELECT id, code, status FROM infrastructure_nodes WHERE id = $1::uuid", [incident.probableRootNodeId]);
@@ -190,6 +320,7 @@ const iso = (value: unknown): string => value instanceof Date ? value.toISOStrin
 const array = (value: unknown): string[] => Array.isArray(value) ? value.map(String) : [];
 const object = (value: unknown): Record<string, string | number | boolean> => typeof value === "object" && value !== null && !Array.isArray(value) ? value as Record<string, string | number | boolean> : {};
 const toReport = (r: Row): CustomerReport => ({ id:string(r.id),clientReportId:string(r.client_report_id),createdAt:iso(r.created_at),channel:string(r.channel) as CustomerReport["channel"],state:string(r.state) as CustomerReport["state"],text:string(r.report_text),transcript:nullableString(r.transcript),audioAssetId:nullableString(r.audio_asset_id),serviceId:nullableString(r.service_id),areaCode:nullableString(r.area_code),latitude:r.latitude == null ? null : Number(r.latitude),longitude:r.longitude == null ? null : Number(r.longitude),symptomCodes:array(r.symptom_codes),citizenId:nullableString(r.citizen_subject),correlatedIncidentId:nullableString(r.correlated_incident_id),sourceLanguage:nullableString(r.source_language) });
+const toTelemetry = (r: Row): TelemetrySample => ({ id:string(r.id),nodeId:string(r.node_id),observedAt:iso(r.observed_at),metric:string(r.metric) as TelemetrySample["metric"],value:Number(r.value),unit:string(r.unit),source:string(r.source) as TelemetrySample["source"],scenarioId:nullableString(r.scenario_id) });
 const toIncident = (r: Row): IncidentSummary => ({ id:string(r.id),incidentNumber:string(r.incident_number),title:string(r.title),status:string(r.status) as IncidentSummary["status"],severity:string(r.severity) as IncidentSummary["severity"],createdAt:iso(r.created_at),updatedAt:iso(r.updated_at),startedAt:nullableString(r.started_at),resolvedAt:nullableString(r.resolved_at),affectedUsersEstimate:Number(r.affected_users_estimate),affectedServiceIds:array(r.affected_service_ids),affectedAreaCodes:array(r.affected_area_codes),probableRootNodeId:nullableString(r.probable_root_node_id),rootCauseConfidence:r.root_cause_confidence == null ? null : Number(r.root_cause_confidence) });
 const toEvidence = (r: Row): IncidentEvidence => ({ id:string(r.id),incidentId:string(r.incident_id),type:string(r.evidence_type) as IncidentEvidence["type"],sourceId:string(r.source_id),summary:string(r.summary),observedAt:iso(r.observed_at),weight:Number(r.weight) });
 const toHypothesis = (r: Row): RootCauseHypothesis => ({ id:string(r.id),incidentId:string(r.incident_id),createdAt:iso(r.created_at),label:string(r.label),targetNodeId:nullableString(r.target_node_id),confidence:Number(r.confidence),rationale:string(r.rationale),evidenceIds:array(r.evidence_ids),assumptions:array(r.assumptions),modelProvider:string(r.model_provider) as RootCauseHypothesis["modelProvider"],modelName:nullableString(r.model_name),promptVersion:nullableString(r.prompt_version) });
