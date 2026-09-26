@@ -1,4 +1,9 @@
 import {
+  AnalyzeIncidentResponseSchema,
+  CreateCommunicationRequestSchema,
+  CreateCommunicationResponseSchema,
+  CreateRemediationProposalRequestSchema,
+  CreateRemediationProposalResponseSchema,
   CreateReportRequestSchema,
   CreateReportResponseSchema,
   IncidentDetailResponseSchema,
@@ -9,6 +14,8 @@ import {
   RemediationDecisionResponseSchema,
   RemediationExecutionResponseSchema,
   VerificationResponseSchema,
+  type CreateCommunicationRequest,
+  type CreateRemediationProposalRequest,
   type CreateReportRequest,
   type CreateReportResponse,
   type IncidentDetailResponse,
@@ -53,6 +60,7 @@ async function requestJson<T>(path: string, schema: Schema<T>, options: RequestO
       headers,
       body: options.body === undefined ? undefined : JSON.stringify(options.body),
       cache: "no-store",
+      credentials: "same-origin",
     });
   } catch {
     throw new ApiClientError("ServiceGraph API is unreachable.", 0, "NETWORK_ERROR");
@@ -87,6 +95,23 @@ async function requestJson<T>(path: string, schema: Schema<T>, options: RequestO
   }
 }
 
+export async function getOperatorAccessToken(): Promise<string | null> {
+  let response: Response;
+  try {
+    response = await fetch("/auth/access-token", {
+      headers: { Accept: "application/json" },
+      cache: "no-store",
+      credentials: "same-origin",
+    });
+  } catch {
+    return null;
+  }
+
+  if (!response.ok) return null;
+  const payload = await response.json().catch(() => null) as { token?: unknown } | null;
+  return typeof payload?.token === "string" && payload.token.length > 0 ? payload.token : null;
+}
+
 export async function createCitizenReport(input: CreateReportRequest): Promise<CreateReportResponse> {
   const body = CreateReportRequestSchema.parse(input);
   return requestJson("/v1/reports", CreateReportResponseSchema, {
@@ -110,6 +135,27 @@ export async function getIncidentEvidence(incidentId: string, accessToken?: stri
 
 export async function getIncidentGraph(incidentId: string, accessToken?: string | null): Promise<IncidentGraphResponse> {
   return requestJson(`/v1/incidents/${encodeURIComponent(incidentId)}/graph`, IncidentGraphResponseSchema, { accessToken });
+}
+
+export async function analyzeIncident(incidentId: string, accessToken?: string | null) {
+  return requestJson(
+    `/v1/incidents/${encodeURIComponent(incidentId)}/analyze`,
+    AnalyzeIncidentResponseSchema,
+    { method: "POST", body: {}, accessToken },
+  );
+}
+
+export async function createRemediationProposal(
+  incidentId: string,
+  input: CreateRemediationProposalRequest,
+  accessToken?: string | null,
+) {
+  const body = CreateRemediationProposalRequestSchema.parse(input);
+  return requestJson(
+    `/v1/incidents/${encodeURIComponent(incidentId)}/remediation-proposals`,
+    CreateRemediationProposalResponseSchema,
+    { method: "POST", body, accessToken },
+  );
 }
 
 export async function decideRemediation(
@@ -139,5 +185,18 @@ export async function verifyIncident(incidentId: string, accessToken?: string | 
     `/v1/incidents/${encodeURIComponent(incidentId)}/verify`,
     VerificationResponseSchema,
     { method: "POST", body: {}, accessToken },
+  );
+}
+
+export async function createIncidentCommunication(
+  incidentId: string,
+  input: CreateCommunicationRequest,
+  accessToken?: string | null,
+) {
+  const body = CreateCommunicationRequestSchema.parse(input);
+  return requestJson(
+    `/v1/incidents/${encodeURIComponent(incidentId)}/communications`,
+    CreateCommunicationResponseSchema,
+    { method: "POST", body, accessToken },
   );
 }
