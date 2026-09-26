@@ -14,6 +14,7 @@ import {
   RemediationDecisionResponseSchema,
   RemediationExecutionResponseSchema,
   VerificationResponseSchema,
+  VoiceTranscriptionResponseSchema,
   type CreateCommunicationRequest,
   type CreateRemediationProposalRequest,
   type CreateReportRequest,
@@ -22,6 +23,7 @@ import {
   type IncidentEvidenceResponse,
   type IncidentGraphResponse,
   type ListIncidentsResponse,
+  type VoiceTranscriptionResponse,
 } from "../../../packages/contracts/dist/index.js";
 
 type Schema<T> = { parse: (value: unknown) => T };
@@ -47,6 +49,28 @@ export class ApiClientError extends Error {
   }
 }
 
+async function parseResponsePayload(response: Response): Promise<unknown> {
+  const raw = await response.text();
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw);
+  } catch {
+    throw new ApiClientError("ServiceGraph API returned an invalid response.", response.status, "INVALID_JSON");
+  }
+}
+
+function throwApiError(response: Response, payload: unknown): never {
+  const envelope = payload as {
+    error?: { code?: string; message?: string; correlationId?: string };
+  } | null;
+  throw new ApiClientError(
+    envelope?.error?.message ?? `Request failed with HTTP ${response.status}.`,
+    response.status,
+    envelope?.error?.code ?? "API_ERROR",
+    envelope?.error?.correlationId ?? null,
+  );
+}
+
 async function requestJson<T>(path: string, schema: Schema<T>, options: RequestOptions = {}): Promise<T> {
   const headers = new Headers({ Accept: "application/json" });
   if (options.body !== undefined) headers.set("Content-Type", "application/json");
@@ -66,27 +90,8 @@ async function requestJson<T>(path: string, schema: Schema<T>, options: RequestO
     throw new ApiClientError("ServiceGraph API is unreachable.", 0, "NETWORK_ERROR");
   }
 
-  const raw = await response.text();
-  let payload: unknown = null;
-  if (raw) {
-    try {
-      payload = JSON.parse(raw);
-    } catch {
-      throw new ApiClientError("ServiceGraph API returned an invalid response.", response.status, "INVALID_JSON");
-    }
-  }
-
-  if (!response.ok) {
-    const envelope = payload as {
-      error?: { code?: string; message?: string; correlationId?: string };
-    } | null;
-    throw new ApiClientError(
-      envelope?.error?.message ?? `Request failed with HTTP ${response.status}.`,
-      response.status,
-      envelope?.error?.code ?? "API_ERROR",
-      envelope?.error?.correlationId ?? null,
-    );
-  }
+  const payload = await parseResponsePayload(response);
+  if (!response.ok) throwApiError(response, payload);
 
   try {
     return schema.parse(payload);
@@ -110,6 +115,37 @@ export async function getOperatorAccessToken(): Promise<string | null> {
   if (!response.ok) return null;
   const payload = await response.json().catch(() => null) as { token?: unknown } | null;
   return typeof payload?.token === "string" && payload.token.length > 0 ? payload.token : null;
+}
+
+export async function transcribeVoiceReport(audio: Blob, language: "fr" | "en"): Promise<VoiceTranscriptionResponse> {
+  if (audio.size === 0) throw new ApiClientError("Recorded audio is empty.", 400, "EMPTY_AUDIO");
+  if (audio.size > 1_048_576) throw new ApiClientError("Recorded audio exceeds the 1 MiB demo limit.", 413, "AUDIO_TOO_LARGE");
+
+  const mimeType = normalizeSupportedAudioType(audio.type);
+  let response: Response;
+  try {
+    response = await fetch(`/v1/voice/transcriptions?language=${encodeURIComponent(language)}`, {
+      method: "POST",
+      headers: {
+        Accept: "application/json",
+        "Content-Type": mimeType,
+      },
+      body: audio,
+      cache: "no-store",
+      credentials: "same-origin",
+    });
+  } catch {
+    throw new ApiClientError("Voice transcription service is unreachable.", 0, "NETWORK_ERROR");
+  }
+
+  const payload = await parseResponsePayload(response);
+  if (!response.ok) throwApiError(response, payload);
+
+  try {
+    return VoiceTranscriptionResponseSchema.parse(payload);
+  } catch {
+    throw new ApiClientError("Voice transcription response does not match the frozen contract.", response.status, "CONTRACT_MISMATCH");
+  }
 }
 
 export async function createCitizenReport(input: CreateReportRequest, idempotencyKey = crypto.randomUUID()): Promise<CreateReportResponse> {
@@ -199,4 +235,10 @@ export async function createIncidentCommunication(
     CreateCommunicationResponseSchema,
     { method: "POST", body, accessToken },
   );
+}
+
+function normalizeSupportedAudioType(input: string): string {
+  const base = input.split(";")[0]?.trim().toLowerCase();
+  if (["audio/webm", "audio/wav", "audio/x-wav", "audio/mpeg", "audio/mp4", "audio/ogg"].includes(base)) return base;
+  return "audio/webm";
 }
