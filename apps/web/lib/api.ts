@@ -22,7 +22,7 @@ import {
   type IncidentEvidenceResponse,
   type IncidentGraphResponse,
   type ListIncidentsResponse,
-} from "../../../packages/contracts/src/index";
+} from "../../../packages/contracts/dist/index.js";
 
 type Schema<T> = { parse: (value: unknown) => T };
 
