@@ -15,7 +15,8 @@ test("NODE-17 scenario is deterministic and includes degradation plus recovery",
   assert.equal(first.frames.length, 17);
   assert.equal(degradationFrames(first).length, 12);
   assert.equal(recoveryFrames(first).length, 5);
-  assert.equal(first.frames[10]?.samples[0]?.value, 238);
+  assert.equal(first.frames[10]?.samples[0]?.value, 242);
+  assert.equal(first.frames[10]?.samples[1]?.value, 21);
   assert.equal(first.frames[16]?.samples[0]?.value, 19);
 });
 
@@ -35,4 +36,8 @@ test("approved recovery execution is idempotent and unapproved execution fails c
   const first = controller.applyApprovedAction(scenario, "action-1", true);
   const retry = controller.applyApprovedAction(scenario, "action-1", true);
   assert.strictEqual(first, retry);
+
+  controller.reset("action-1");
+  const afterReset = controller.applyApprovedAction(scenario, "action-1", true);
+  assert.notStrictEqual(first, afterReset);
 });

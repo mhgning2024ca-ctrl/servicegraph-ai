@@ -10,40 +10,23 @@ WITH scenario AS (
     '2026-09-26T12:00:00Z'::timestamptz AS started_at
 ), samples(offset_minute, metric, value, unit) AS (
   VALUES
-    (0, 'LATENCY_MS'::telemetry_metric, 18.0, 'ms'),
-    (0, 'PACKET_LOSS_PCT'::telemetry_metric, 0.1, 'percent'),
-    (1, 'LATENCY_MS'::telemetry_metric, 19.0, 'ms'),
-    (1, 'PACKET_LOSS_PCT'::telemetry_metric, 0.1, 'percent'),
-    (2, 'LATENCY_MS'::telemetry_metric, 18.0, 'ms'),
-    (2, 'PACKET_LOSS_PCT'::telemetry_metric, 0.2, 'percent'),
-    (3, 'LATENCY_MS'::telemetry_metric, 20.0, 'ms'),
-    (3, 'PACKET_LOSS_PCT'::telemetry_metric, 0.1, 'percent'),
-    (4, 'LATENCY_MS'::telemetry_metric, 19.0, 'ms'),
-    (4, 'PACKET_LOSS_PCT'::telemetry_metric, 0.2, 'percent'),
-    (5, 'LATENCY_MS'::telemetry_metric, 42.0, 'ms'),
-    (5, 'PACKET_LOSS_PCT'::telemetry_metric, 1.8, 'percent'),
-    (6, 'LATENCY_MS'::telemetry_metric, 78.0, 'ms'),
-    (6, 'PACKET_LOSS_PCT'::telemetry_metric, 4.2, 'percent'),
-    (7, 'LATENCY_MS'::telemetry_metric, 126.0, 'ms'),
-    (7, 'PACKET_LOSS_PCT'::telemetry_metric, 8.4, 'percent'),
-    (8, 'LATENCY_MS'::telemetry_metric, 181.0, 'ms'),
-    (8, 'PACKET_LOSS_PCT'::telemetry_metric, 12.6, 'percent'),
-    (9, 'LATENCY_MS'::telemetry_metric, 224.0, 'ms'),
-    (9, 'PACKET_LOSS_PCT'::telemetry_metric, 17.8, 'percent'),
-    (10, 'LATENCY_MS'::telemetry_metric, 238.0, 'ms'),
-    (10, 'PACKET_LOSS_PCT'::telemetry_metric, 19.1, 'percent'),
-    (11, 'LATENCY_MS'::telemetry_metric, 231.0, 'ms'),
-    (11, 'PACKET_LOSS_PCT'::telemetry_metric, 18.5, 'percent'),
-    (12, 'LATENCY_MS'::telemetry_metric, 142.0, 'ms'),
-    (12, 'PACKET_LOSS_PCT'::telemetry_metric, 9.0, 'percent'),
-    (13, 'LATENCY_MS'::telemetry_metric, 74.0, 'ms'),
-    (13, 'PACKET_LOSS_PCT'::telemetry_metric, 3.1, 'percent'),
-    (14, 'LATENCY_MS'::telemetry_metric, 36.0, 'ms'),
-    (14, 'PACKET_LOSS_PCT'::telemetry_metric, 0.9, 'percent'),
-    (15, 'LATENCY_MS'::telemetry_metric, 22.0, 'ms'),
-    (15, 'PACKET_LOSS_PCT'::telemetry_metric, 0.3, 'percent'),
-    (16, 'LATENCY_MS'::telemetry_metric, 19.0, 'ms'),
-    (16, 'PACKET_LOSS_PCT'::telemetry_metric, 0.2, 'percent')
+    (0, 'LATENCY_MS', 18.0, 'ms'), (0, 'PACKET_LOSS_PCT', 0.1, 'percent'),
+    (1, 'LATENCY_MS', 19.0, 'ms'), (1, 'PACKET_LOSS_PCT', 0.1, 'percent'),
+    (2, 'LATENCY_MS', 18.0, 'ms'), (2, 'PACKET_LOSS_PCT', 0.2, 'percent'),
+    (3, 'LATENCY_MS', 20.0, 'ms'), (3, 'PACKET_LOSS_PCT', 0.1, 'percent'),
+    (4, 'LATENCY_MS', 19.0, 'ms'), (4, 'PACKET_LOSS_PCT', 0.2, 'percent'),
+    (5, 'LATENCY_MS', 42.0, 'ms'), (5, 'PACKET_LOSS_PCT', 1.8, 'percent'),
+    (6, 'LATENCY_MS', 78.0, 'ms'), (6, 'PACKET_LOSS_PCT', 4.2, 'percent'),
+    (7, 'LATENCY_MS', 126.0, 'ms'), (7, 'PACKET_LOSS_PCT', 8.4, 'percent'),
+    (8, 'LATENCY_MS', 181.0, 'ms'), (8, 'PACKET_LOSS_PCT', 12.6, 'percent'),
+    (9, 'LATENCY_MS', 224.0, 'ms'), (9, 'PACKET_LOSS_PCT', 17.8, 'percent'),
+    (10, 'LATENCY_MS', 242.0, 'ms'), (10, 'PACKET_LOSS_PCT', 21.0, 'percent'),
+    (11, 'LATENCY_MS', 231.0, 'ms'), (11, 'PACKET_LOSS_PCT', 18.5, 'percent'),
+    (12, 'LATENCY_MS', 142.0, 'ms'), (12, 'PACKET_LOSS_PCT', 9.0, 'percent'),
+    (13, 'LATENCY_MS', 74.0, 'ms'), (13, 'PACKET_LOSS_PCT', 3.1, 'percent'),
+    (14, 'LATENCY_MS', 36.0, 'ms'), (14, 'PACKET_LOSS_PCT', 0.9, 'percent'),
+    (15, 'LATENCY_MS', 22.0, 'ms'), (15, 'PACKET_LOSS_PCT', 0.3, 'percent'),
+    (16, 'LATENCY_MS', 19.0, 'ms'), (16, 'PACKET_LOSS_PCT', 0.2, 'percent')
 )
 INSERT INTO telemetry_samples (id, node_id, observed_at, metric, value, unit, source, scenario_id)
 SELECT
@@ -57,10 +40,10 @@ SELECT
   s.scenario_id
 FROM scenario s
 CROSS JOIN samples
-ON CONFLICT (observed_at, id) DO UPDATE SET
-  value = EXCLUDED.value,
-  unit = EXCLUDED.unit,
-  source = EXCLUDED.source,
-  scenario_id = EXCLUDED.scenario_id;
+WHERE NOT EXISTS (
+  SELECT 1 FROM telemetry_samples existing
+  WHERE existing.id = md5(s.scenario_id::text || ':' || samples.offset_minute::text || ':' || samples.metric::text)::uuid
+    AND existing.observed_at = s.started_at + make_interval(mins => samples.offset_minute)
+);
 
 COMMIT;

@@ -18,7 +18,7 @@ export function telemetryWindowQuery(input: TelemetryWindowInput): SqlQuery {
       WHERE node_id = $1::uuid
         AND observed_at >= $2::timestamptz
         AND observed_at <= $3::timestamptz
-        AND ($4::telemetry_metric[] IS NULL OR metric = ANY($4::telemetry_metric[]))
+        AND ($4::text[] IS NULL OR metric = ANY($4::text[]))
       ORDER BY observed_at ASC, metric ASC
     `,
     values: [input.nodeId, input.windowStart, input.windowEnd, input.metrics?.length ? input.metrics : null],
@@ -149,7 +149,7 @@ export function verificationMetricsQuery(input: VerificationMetricsInput): SqlQu
       WHERE node_id = $1::uuid
         AND observed_at >= $3::timestamptz
         AND observed_at <= $4::timestamptz
-        AND metric = ANY($5::telemetry_metric[])
+        AND metric = ANY($5::text[])
       GROUP BY metric
       ORDER BY metric
     `,

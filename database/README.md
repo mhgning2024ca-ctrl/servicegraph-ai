@@ -1,6 +1,6 @@
 # ServiceGraph AI data layer
 
-This directory contains the PostgreSQL/TigerData schema and deterministic demo fixtures owned by A3.
+This directory contains the normative PostgreSQL/TigerData physical schema and deterministic demo fixtures owned by A3.
 
 ## Apply migrations
 
