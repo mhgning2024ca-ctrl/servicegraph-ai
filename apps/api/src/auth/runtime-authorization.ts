@@ -1,4 +1,4 @@
-import { createPublicKey, verify as verifySignature } from "node:crypto";
+import { createPublicKey, verify as verifySignature, type JsonWebKey } from "node:crypto";
 import type { FastifyRequest } from "fastify";
 
 import { ApiError } from "../shared/api-error.js";
