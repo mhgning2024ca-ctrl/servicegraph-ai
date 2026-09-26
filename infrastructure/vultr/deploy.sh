@@ -3,11 +3,11 @@ set -Eeuo pipefail
 
 usage() {
   cat <<'USAGE'
-Usage: ./deploy.sh --env-file PATH --compose-file PATH --public-url URL [--state-dir PATH]
+Usage: ./deploy.sh --env-file PATH --compose-file PATH --public-url URL [--state-dir PATH] [--ref GIT_REF]
 
-Deploys origin/main with a fast-forward-only update, records the previous and
-new commit SHAs, validates Compose, builds, starts, and checks canonical health
-endpoints. Run as the non-root deployment user from a clean repository clone.
+Deploys a validated Git ref (default: origin/main), records previous/new commit
+SHAs, validates Compose, builds, starts, and checks canonical health endpoints.
+Run as the non-root deployment user from a clean repository clone.
 USAGE
 }
 
@@ -15,6 +15,7 @@ env_file=""
 compose_file=""
 public_url=""
 state_dir=""
+deploy_ref="main"
 
 while (($#)); do
   case "$1" in
@@ -22,6 +23,7 @@ while (($#)); do
     --compose-file) compose_file="${2:-}"; shift 2 ;;
     --public-url) public_url="${2:-}"; shift 2 ;;
     --state-dir) state_dir="${2:-}"; shift 2 ;;
+    --ref) deploy_ref="${2:-}"; shift 2 ;;
     -h|--help) usage; exit 0 ;;
     *) usage >&2; exit 64 ;;
   esac
@@ -64,9 +66,21 @@ if [[ ! "${public_url}" =~ ^https://[^/]+/?$ ]]; then
 fi
 
 previous_sha="$(git rev-parse HEAD)"
-git fetch origin
-git checkout main
-git pull --ff-only origin main
+git fetch origin --prune
+if [[ "${deploy_ref}" == "main" ]]; then
+  git checkout main
+  git pull --ff-only origin main
+else
+  resolved_ref="$(git rev-parse --verify "${deploy_ref}^{commit}" 2>/dev/null || true)"
+  if [[ -z "${resolved_ref}" ]]; then
+    resolved_ref="$(git rev-parse --verify "origin/${deploy_ref}^{commit}" 2>/dev/null || true)"
+  fi
+  if [[ -z "${resolved_ref}" ]]; then
+    echo "Cannot resolve deploy ref: ${deploy_ref}" >&2
+    exit 65
+  fi
+  git checkout --detach "${resolved_ref}"
+fi
 new_sha="$(git rev-parse HEAD)"
 
 install -d -m 0700 "${state_dir}"
