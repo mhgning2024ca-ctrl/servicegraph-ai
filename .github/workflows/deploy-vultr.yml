@@ -1,0 +1,90 @@
+name: Deploy to Vultr
+
+on:
+  workflow_run:
+    workflows: ["ServiceGraph CI"]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Git ref or commit SHA to deploy"
+        required: false
+        default: "main"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: servicegraph-vultr-demo
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy validated build
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.head_branch == 'main')
+    runs-on: ubuntu-latest
+    environment: demo
+    env:
+      VULTR_HOST: ${{ secrets.VULTR_HOST }}
+      VULTR_USER: ${{ secrets.VULTR_USER }}
+      VULTR_REPO_PATH: ${{ secrets.VULTR_REPO_PATH }}
+      VULTR_ENV_FILE: ${{ secrets.VULTR_ENV_FILE }}
+      SERVICEGRAPH_PUBLIC_URL: ${{ secrets.SERVICEGRAPH_PUBLIC_URL }}
+
+    steps:
+      - name: Resolve deploy ref
+        id: deploy_ref
+        shell: bash
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_run" ]]; then
+            echo "value=${{ github.event.workflow_run.head_sha }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "value=${{ inputs.ref }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Validate required deployment secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          : "${VULTR_HOST:?Missing VULTR_HOST secret}"
+          : "${VULTR_USER:?Missing VULTR_USER secret}"
+          : "${SERVICEGRAPH_PUBLIC_URL:?Missing SERVICEGRAPH_PUBLIC_URL secret}"
+          [[ "${SERVICEGRAPH_PUBLIC_URL}" =~ ^https://[^/]+/?$ ]] || {
+            echo "SERVICEGRAPH_PUBLIC_URL must be an HTTPS origin without a path." >&2
+            exit 64
+          }
+
+      - name: Configure SSH
+        shell: bash
+        env:
+          VULTR_SSH_PRIVATE_KEY: ${{ secrets.VULTR_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          : "${VULTR_SSH_PRIVATE_KEY:?Missing VULTR_SSH_PRIVATE_KEY secret}"
+          install -d -m 0700 ~/.ssh
+          printf '%s\n' "$VULTR_SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 0600 ~/.ssh/id_ed25519
+          ssh-keyscan -H "$VULTR_HOST" >> ~/.ssh/known_hosts
+          chmod 0600 ~/.ssh/known_hosts
+
+      - name: Deploy on Vultr
+        shell: bash
+        env:
+          DEPLOY_REF: ${{ steps.deploy_ref.outputs.value }}
+        run: |
+          set -euo pipefail
+          repo_path="${VULTR_REPO_PATH:-/srv/servicegraph-ai}"
+          env_file="${VULTR_ENV_FILE:-/etc/servicegraph/servicegraph.env}"
+          ssh -o BatchMode=yes "${VULTR_USER}@${VULTR_HOST}"             "cd '${repo_path}' && ./infrastructure/vultr/deploy.sh --env-file '${env_file}' --compose-file docker-compose.yml --public-url '${SERVICEGRAPH_PUBLIC_URL}' --ref '${DEPLOY_REF}'"
+
+      - name: Public smoke
+        shell: bash
+        run: |
+          set -euo pipefail
+          base="${SERVICEGRAPH_PUBLIC_URL%/}"
+          curl --fail --show-error --silent --retry 5 --retry-delay 2 "$base/v1/health/live" >/dev/null
+          curl --fail --show-error --silent --retry 5 --retry-delay 2 "$base/v1/health/ready" >/dev/null
+          curl --fail --show-error --silent --retry 5 --retry-delay 2 "$base/" >/dev/null
