@@ -1,7 +1,9 @@
 import type {
   ApprovalDecision,
   BlastRadiusSnapshot,
+  CustomerCommunication,
   CustomerReport,
+  IncidentEvidence,
   IncidentGraph,
   IncidentSummary,
   RemediationExecution,
@@ -21,21 +23,54 @@ export interface AuditEventInput {
   payload: Record<string, unknown>;
 }
 
+export interface IntegrationHealthRecord {
+  provider: string;
+  state: "AVAILABLE" | "DEGRADED" | "UNAVAILABLE";
+  checkedAt: string;
+  reasonCode: string | null;
+}
+
+export interface IncidentListFilter {
+  status?: IncidentSummary["status"];
+  severity?: IncidentSummary["severity"];
+  limit: number;
+  cursor?: string;
+}
+
 export interface BackendRepository {
   isReady(): Promise<boolean>;
+
   createReport(report: CustomerReport): Promise<CustomerReport>;
-  findIncidentGraph(incidentId: string): Promise<IncidentGraph | null>;
-  appendAudit(event: AuditEventInput): Promise<void>;
+  findReport(reportId: string): Promise<CustomerReport | null>;
+
+  listIncidents(filter: IncidentListFilter): Promise<readonly IncidentSummary[]>;
   findIncident(incidentId: string): Promise<IncidentSummary | null>;
   updateIncident(incident: IncidentSummary): Promise<void>;
+
+  findIncidentGraph(incidentId: string): Promise<IncidentGraph | null>;
+  listIncidentEvidence(incidentId: string): Promise<readonly IncidentEvidence[]>;
+  saveEvidence(evidence: IncidentEvidence): Promise<void>;
+
   saveHypothesis(hypothesis: RootCauseHypothesis): Promise<void>;
+  findLatestHypothesis(incidentId: string): Promise<RootCauseHypothesis | null>;
+
   saveBlastRadius(snapshot: BlastRadiusSnapshot): Promise<void>;
+  findLatestBlastRadius(incidentId: string): Promise<BlastRadiusSnapshot | null>;
+
+  saveProposal(proposal: RemediationProposal): Promise<void>;
   findProposal(proposalId: string): Promise<RemediationProposal | null>;
+  findLatestProposalForIncident(incidentId: string): Promise<RemediationProposal | null>;
   updateProposal(proposal: RemediationProposal): Promise<void>;
+
   saveDecision(decision: ApprovalDecision): Promise<void>;
   findExecutionByProposal(proposalId: string): Promise<RemediationExecution | null>;
   saveExecution(execution: RemediationExecution): Promise<void>;
   saveVerification(snapshot: VerificationSnapshot): Promise<void>;
+
+  saveCommunication(communication: CustomerCommunication): Promise<void>;
+  listIntegrationHealth(): Promise<readonly IntegrationHealthRecord[]>;
+
+  appendAudit(event: AuditEventInput): Promise<void>;
 }
 
 export type IntegrationResult<T> =
@@ -71,4 +106,24 @@ export interface VerificationAdapter {
     execution: RemediationExecution,
     correlationId: string,
   ): Promise<VerificationSnapshot>;
+}
+
+export interface ScenarioRuntime {
+  start(speed: number, correlationId: string): Promise<{
+    scenarioId: string;
+    scenarioKey: "node17-degradation";
+    state: "RUNNING" | "DEGRADED" | "RECOVERING" | "RECOVERED" | "RESET";
+    startedAt: string;
+    speed: number;
+    targetNodeId: string;
+  }>;
+  status(scenarioId: string): Promise<{
+    scenarioId: string;
+    scenarioKey: "node17-degradation";
+    state: "RUNNING" | "DEGRADED" | "RECOVERING" | "RECOVERED" | "RESET";
+    startedAt: string;
+    speed: number;
+    targetNodeId: string;
+  } | null>;
+  reset(correlationId: string): Promise<void>;
 }
