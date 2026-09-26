@@ -1,0 +1,31 @@
+# Render the two {{...}} placeholders only after A7 publishes the canonical
+# internal application listen addresses. PUBLIC_APP_URL is the frozen runtime
+# variable and should contain the complete public origin (for example,
+# https://servicegraph.example.org).
+
+{$PUBLIC_APP_URL} {
+	encode zstd gzip
+
+	header {
+		-Server
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		X-Frame-Options "DENY"
+		Content-Security-Policy "frame-ancestors 'none'"
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+	}
+
+	@api path /v1 /v1/*
+	handle @api {
+		reverse_proxy {{API_UPSTREAM}}
+	}
+
+	handle {
+		reverse_proxy {{WEB_UPSTREAM}}
+	}
+
+	log {
+		output stdout
+		format json
+	}
+}
