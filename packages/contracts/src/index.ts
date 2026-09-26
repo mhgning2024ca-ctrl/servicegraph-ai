@@ -4,6 +4,7 @@ export * from "./api/incidents.js";
 export * from "./api/remediation.js";
 export * from "./api/reports.js";
 export * from "./api/simulator.js";
+export * from "./api/voice.js";
 export * from "./domain/common.js";
 export * from "./domain/communication.js";
 export * from "./domain/incident.js";
