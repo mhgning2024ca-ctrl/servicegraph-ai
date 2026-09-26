@@ -105,7 +105,13 @@ const dictionary = {
     publishRecovery: "Publish verified recovery update",
     communicationCreated: "Recovery communication confirmed by the backend",
     resetGraph: "Reset selection",
-    causalGraphAccessible: "Accessible causal evidence graph"
+    causalGraphAccessible: "Accessible causal evidence graph",
+    nocLoading: "Loading NOC data from the ServiceGraph API…",
+    nocUnavailable: "Live NOC data is unavailable.",
+    recentServiceHealth: "Recent service health — deterministic demo sample",
+    demoScenarioWindow: "Deterministic demo scenario window",
+    ottawaServiceMesh: "Ottawa service mesh",
+    latest: "Latest"
   },
   fr: {
     tagline: "Du signalement à la cause racine, jusqu’à une résolution sécurisée.",
@@ -207,7 +213,13 @@ const dictionary = {
     publishRecovery: "Publier le rétablissement vérifié",
     communicationCreated: "Communication de rétablissement confirmée par le backend",
     resetGraph: "Réinitialiser la sélection",
-    causalGraphAccessible: "Graphe causal des preuves accessible"
+    causalGraphAccessible: "Graphe causal des preuves accessible",
+    nocLoading: "Chargement des données NOC depuis l’API ServiceGraph…",
+    nocUnavailable: "Les données NOC en direct sont indisponibles.",
+    recentServiceHealth: "Santé récente du service — échantillon de démo déterministe",
+    demoScenarioWindow: "Fenêtre du scénario de démo déterministe",
+    ottawaServiceMesh: "Maillage de services d’Ottawa",
+    latest: "Dernier"
   }
 } as const;
 
