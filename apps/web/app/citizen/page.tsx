@@ -52,8 +52,8 @@ export default function CitizenPage() {
             {mode === "voice" && (
               <div className="voice-state">
                 <span className="voice-orb"><Mic size={25}/></span>
-                <strong>ElevenLabs voice intake</strong>
-                <p>Ready for provider integration. Text fallback remains available.</p>
+                <strong>{t("voiceIntakeTitle")}</strong>
+                <p>{t("voiceIntakeBody")}</p>
                 <button className="text-action" onClick={() => setMode("text")}>{t("type")}</button>
               </div>
             )}
@@ -76,7 +76,7 @@ export default function CitizenPage() {
           <section className="light-card nearby">
             <div className="nearby-head">
               <div><small className="light-kicker">{t("nearby")}</small><h2>{t("degradation")}</h2></div>
-              <span className="critical-pill"><TriangleAlert size={14}/>Critical</span>
+              <span className="critical-pill"><TriangleAlert size={14}/>{t("critical")}</span>
             </div>
             <p className="location"><MapPin size={15}/>{t("location")}</p>
             <div className="investigating"><span/>{t("investigating")}</div>
