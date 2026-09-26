@@ -142,7 +142,19 @@ const dictionary = {
     unresolvedIncidents: "Unresolved incidents",
     confidenceCoverage: "AI confidence coverage",
     currentIncident: "Current incident",
-    reportNode: "Report node"
+    reportNode: "Report node",
+    onlineReady: "Online — reports can be sent immediately",
+    offlineMode: "Offline — reports will be queued locally",
+    queuedReports: "queued report(s)",
+    retryingQueued: "Retrying queued reports…",
+    queuedOffline: "Report queued offline",
+    queuedOfflineDetail: "The report is stored on this device and will be retried with the same idempotency key. It has not been marked as received by the server.",
+    reportActivity: "Report activity",
+    noQueuedReports: "No reports are waiting to be sent.",
+    noConfirmedReports: "No server-confirmed reports in this session yet.",
+    citizenPreferences: "Citizen preferences",
+    citizenProfileDetail: "Language is stored on this device. No citizen account is required for the public report flow.",
+    citizenNavigation: "Citizen portal navigation"
   },
   fr: {
     tagline: "Du signalement à la cause racine, jusqu’à une résolution sécurisée.",
@@ -281,7 +293,19 @@ const dictionary = {
     unresolvedIncidents: "Incidents non résolus",
     confidenceCoverage: "Couverture de confiance IA",
     currentIncident: "Incident actuel",
-    reportNode: "Nœud de signalement"
+    reportNode: "Nœud de signalement",
+    onlineReady: "En ligne — les signalements peuvent être envoyés immédiatement",
+    offlineMode: "Hors ligne — les signalements seront mis en file locale",
+    queuedReports: "signalement(s) en attente",
+    retryingQueued: "Nouvelle tentative d’envoi des signalements en attente…",
+    queuedOffline: "Signalement mis en file hors ligne",
+    queuedOfflineDetail: "Le signalement est conservé sur cet appareil et sera renvoyé avec la même clé d’idempotence. Il n’est pas présenté comme reçu par le serveur.",
+    reportActivity: "Activité des signalements",
+    noQueuedReports: "Aucun signalement n’attend d’être envoyé.",
+    noConfirmedReports: "Aucun signalement confirmé par le serveur dans cette session pour le moment.",
+    citizenPreferences: "Préférences citoyennes",
+    citizenProfileDetail: "La langue est mémorisée sur cet appareil. Aucun compte citoyen n’est requis pour le parcours public de signalement.",
+    citizenNavigation: "Navigation du portail citoyen"
   }
 } as const;
 
