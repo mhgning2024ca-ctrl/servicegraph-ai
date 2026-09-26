@@ -100,7 +100,18 @@ const dictionary = {
     approvedStage: "Approved",
     remediatingStage: "Remediating",
     verifyingStage: "Verifying",
-    resolvedStage: "Resolved"
+    resolvedStage: "Resolved",
+    major: "Major",
+    minor: "Minor",
+    riskLabel: "Risk",
+    rootCauseDetail: "Packet-loss / latency degradation",
+    latencyChartLabel: "Latency rises from normal to degraded",
+    activityTitle: "Recent activity",
+    activityEmpty: "Your submitted reports and status updates will appear here.",
+    profileTitle: "Profile",
+    profileBody: "Manage your language and account preferences.",
+    affectedConfirmed: "Impact confirmed",
+    backToStatus: "Back to status"
   },
   fr: {
     tagline: "Du signalement à la cause racine, jusqu’à une résolution sécurisée.",
@@ -197,7 +208,18 @@ const dictionary = {
     approvedStage: "Approuvé",
     remediatingStage: "Remédiation",
     verifyingStage: "Vérification",
-    resolvedStage: "Résolu"
+    resolvedStage: "Résolu",
+    major: "Majeur",
+    minor: "Mineur",
+    riskLabel: "Risque",
+    rootCauseDetail: "Dégradation de perte de paquets et de latence",
+    latencyChartLabel: "La latence passe d’un niveau normal à un niveau dégradé",
+    activityTitle: "Activité récente",
+    activityEmpty: "Vos signalements et mises à jour d’état apparaîtront ici.",
+    profileTitle: "Profil",
+    profileBody: "Gérez votre langue et vos préférences de compte.",
+    affectedConfirmed: "Impact confirmé",
+    backToStatus: "Retour à l’état du service"
   }
 } as const;
 
