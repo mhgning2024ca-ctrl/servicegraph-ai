@@ -1,11 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 
-import {
-  InMemoryOperationalEventBus,
-  type OperationalEventRecord,
-} from "../src/realtime/operational-event-bus.js";
+import type { OperationalEventEnvelope } from "@servicegraph/contracts";
 
-function event(id: string): OperationalEventRecord {
+import { InMemoryOperationalEventBus } from "../src/realtime/operational-event-bus.js";
+
+function event(id: string): OperationalEventEnvelope {
   return {
     id,
     type: "incident.updated",

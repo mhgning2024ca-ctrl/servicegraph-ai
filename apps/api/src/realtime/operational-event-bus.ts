@@ -1,40 +1,14 @@
-export const OPERATIONAL_EVENT_TYPES = [
-  "report.created",
-  "report.correlated",
-  "telemetry.anomaly",
-  "incident.created",
-  "incident.updated",
-  "hypothesis.created",
-  "remediation.proposed",
-  "remediation.approved",
-  "remediation.executing",
-  "verification.updated",
-  "incident.resolved",
-  "communication.created",
-  "integration.degraded",
-] as const;
+import type { OperationalEventEnvelope } from "@servicegraph/contracts";
 
-export type OperationalEventType = (typeof OPERATIONAL_EVENT_TYPES)[number];
-
-/** Internal transport record. The HTTP schema remains owned by packages/contracts. */
-export interface OperationalEventRecord {
-  id: string;
-  type: OperationalEventType;
-  occurredAt: string;
-  correlationId: string;
-  entityId: string | null;
-  payload: Record<string, unknown>;
-}
-
-export type OperationalEventListener = (event: OperationalEventRecord) => void;
+export type OperationalEventListener = (event: OperationalEventEnvelope) => void;
 
 export interface OperationalEventSubscription {
   close(): void;
 }
 
 export interface OperationalEventBus {
-  publish(event: OperationalEventRecord): void;
-  recent(afterEventId?: string): readonly OperationalEventRecord[];
+  publish(event: OperationalEventEnvelope): void;
+  recent(afterEventId?: string): readonly OperationalEventEnvelope[];
   subscribe(listener: OperationalEventListener): OperationalEventSubscription;
 }
 
@@ -45,7 +19,7 @@ export interface InMemoryOperationalEventBusOptions {
 export class InMemoryOperationalEventBus implements OperationalEventBus {
   private readonly capacity: number;
   private readonly listeners = new Set<OperationalEventListener>();
-  private readonly records: OperationalEventRecord[] = [];
+  private readonly records: OperationalEventEnvelope[] = [];
 
   constructor(options: InMemoryOperationalEventBusOptions = {}) {
     const capacity = options.capacity ?? 256;
@@ -55,22 +29,16 @@ export class InMemoryOperationalEventBus implements OperationalEventBus {
     this.capacity = capacity;
   }
 
-  publish(event: OperationalEventRecord): void {
+  publish(event: OperationalEventEnvelope): void {
     this.records.push(event);
     if (this.records.length > this.capacity) {
       this.records.splice(0, this.records.length - this.capacity);
     }
-
-    for (const listener of this.listeners) {
-      listener(event);
-    }
+    for (const listener of this.listeners) listener(event);
   }
 
-  recent(afterEventId?: string): readonly OperationalEventRecord[] {
-    if (afterEventId === undefined) {
-      return [...this.records];
-    }
-
+  recent(afterEventId?: string): readonly OperationalEventEnvelope[] {
+    if (afterEventId === undefined) return [...this.records];
     const index = this.records.findIndex((event) => event.id === afterEventId);
     return index < 0 ? [...this.records] : this.records.slice(index + 1);
   }
@@ -78,7 +46,6 @@ export class InMemoryOperationalEventBus implements OperationalEventBus {
   subscribe(listener: OperationalEventListener): OperationalEventSubscription {
     this.listeners.add(listener);
     let closed = false;
-
     return {
       close: () => {
         if (!closed) {
