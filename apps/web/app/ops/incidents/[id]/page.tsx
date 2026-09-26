@@ -3,8 +3,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import { Activity, BrainCircuit, CheckCircle2, Clock3, GitBranch, RotateCcw, ShieldCheck, TriangleAlert, Users, X } from "lucide-react";
+import { CausalGraph } from "@/components/CausalGraph";
 import { OpsShell } from "@/components/OpsShell";
-import { Topology } from "@/components/Topology";
 import {
   ApiClientError,
   analyzeIncident,
@@ -133,10 +133,7 @@ export default function IncidentPage() {
 
   async function requestAnalysis() {
     if (!incidentId || !token) return;
-    await runOperation(
-      () => analyzeIncident(incidentId, token),
-      t("analysisQueued"),
-    );
+    await runOperation(() => analyzeIncident(incidentId, token), t("analysisQueued"));
   }
 
   async function proposeRemediation() {
@@ -216,14 +213,12 @@ export default function IncidentPage() {
               <div><small className="section-kicker">{t("causalGraph")}</small><h3>{reportCount} → {serviceCount} → 1</h3></div>
               <GitBranch size={19}/>
             </div>
-            <div className="causal-flow">
-              <div className="causal-node"><strong>{reportCount}</strong><small>{t("reportsLabel")}</small></div>
-              <span className="causal-link"/>
-              <div className="causal-node"><strong>{serviceCount}</strong><small>{t("servicesLabel")}</small></div>
-              <span className="causal-link"/>
-              <div className="causal-node root"><strong>{rootNodeLabel}</strong><small>{confidence}%</small></div>
-            </div>
-            <Topology compact />
+            <CausalGraph
+              graph={graph}
+              fallbackLabel={t("demoSnapshot")}
+              resetLabel={t("resetGraph")}
+              accessibleLabel={t("causalGraphAccessible")}
+            />
           </article>
 
           <article className="panel ai-panel">
