@@ -111,7 +111,13 @@ const dictionary = {
     profileTitle: "Profile",
     profileBody: "Manage your language and account preferences.",
     affectedConfirmed: "Impact confirmed",
-    backToStatus: "Back to status"
+    backToStatus: "Back to status",
+    loading: "Loading ServiceGraph…",
+    errorTitle: "Something went wrong",
+    errorBody: "This view could not be loaded. Your current incident data has not been modified.",
+    retryView: "Retry",
+    queuedOffline: "Saved offline",
+    queuedOfflineBody: "Your report is stored on this device and will be retried when connectivity returns."
   },
   fr: {
     tagline: "Du signalement à la cause racine, jusqu’à une résolution sécurisée.",
@@ -219,7 +225,13 @@ const dictionary = {
     profileTitle: "Profil",
     profileBody: "Gérez votre langue et vos préférences de compte.",
     affectedConfirmed: "Impact confirmé",
-    backToStatus: "Retour à l’état du service"
+    backToStatus: "Retour à l’état du service",
+    loading: "Chargement de ServiceGraph…",
+    errorTitle: "Une erreur est survenue",
+    errorBody: "Cette vue n’a pas pu être chargée. Les données actuelles de l’incident n’ont pas été modifiées.",
+    retryView: "Réessayer",
+    queuedOffline: "Enregistré hors ligne",
+    queuedOfflineBody: "Votre signalement est conservé sur cet appareil et sera retenté au retour de la connexion."
   }
 } as const;
 
