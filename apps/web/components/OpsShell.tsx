@@ -4,6 +4,7 @@ import Link from "next/link";
 import { ReactNode, useEffect, useState } from "react";
 import { BarChart3, FileWarning, LayoutDashboard, Menu, Network, ScrollText, Siren, X } from "lucide-react";
 import { Brand } from "@/components/Brand";
+import { getPublicConfig } from "@/lib/api";
 import { getOperatorProfile, type OperatorProfile } from "@/lib/auth";
 import { LanguageToggle, useLocale } from "@/lib/i18n";
 
@@ -13,9 +14,11 @@ export function OpsShell({ children, active = "overview" }: { children: ReactNod
   const { t, locale } = useLocale();
   const [open, setOpen] = useState(false);
   const [profile, setProfile] = useState<OperatorProfile | null>(null);
+  const [authMode, setAuthMode] = useState<"auth0" | "mock" | null>(null);
 
   useEffect(() => {
     void getOperatorProfile().then(setProfile);
+    void getPublicConfig().then(config => setAuthMode(config.auth.mode)).catch(() => setAuthMode(null));
   }, []);
 
   const items = [
@@ -47,7 +50,7 @@ export function OpsShell({ children, active = "overview" }: { children: ReactNod
         </nav>
         <div className="operator">
           <span className="avatar">{initials}</span>
-          <div><strong>{displayName}</strong><small>{role}</small></div>
+          <div><strong>{displayName}</strong><small>{role}</small>{profile ? <a className="operator-auth" href="/auth/logout">{t("signOut")}</a> : authMode === "auth0" ? <a className="operator-auth" href="/auth/login">{t("signIn")}</a> : authMode === "mock" ? <small>{t("auth0Unavailable")}</small> : null}</div>
         </div>
       </aside>
 

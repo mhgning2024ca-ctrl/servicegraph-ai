@@ -1,4 +1,6 @@
 import {
+  AffectedConfirmationRequestSchema,
+  AffectedConfirmationResponseSchema,
   AnalyzeIncidentResponseSchema,
   CreateCommunicationRequestSchema,
   CreateCommunicationResponseSchema,
@@ -13,7 +15,12 @@ import {
   RemediationDecisionRequestSchema,
   RemediationDecisionResponseSchema,
   RemediationExecutionResponseSchema,
+  PublicConfigResponseSchema,
+  PublicIncidentListResponseSchema,
   VerificationResponseSchema,
+  VoiceTranscriptionResponseSchema,
+  OperationalEventEnvelopeSchema,
+  type AffectedConfirmationResponse,
   type CreateCommunicationRequest,
   type CreateRemediationProposalRequest,
   type CreateReportRequest,
@@ -22,6 +29,9 @@ import {
   type IncidentEvidenceResponse,
   type IncidentGraphResponse,
   type ListIncidentsResponse,
+  type PublicConfigResponse,
+  type PublicIncidentListResponse,
+  type VoiceTranscriptionResponse,
 } from "../../../packages/contracts/dist/index.js";
 
 type Schema<T> = { parse: (value: unknown) => T };
@@ -119,6 +129,133 @@ export async function createCitizenReport(input: CreateReportRequest, idempotenc
     body,
     idempotencyKey,
   });
+}
+
+export async function getPublicConfig(): Promise<PublicConfigResponse> {
+  return requestJson("/v1/config/public", PublicConfigResponseSchema);
+}
+
+export async function listPublicIncidents(): Promise<PublicIncidentListResponse> {
+  return requestJson("/v1/status/incidents", PublicIncidentListResponseSchema);
+}
+
+export async function confirmAffected(
+  incidentId: string,
+  input: { serviceId: string | null; areaCode: string },
+): Promise<AffectedConfirmationResponse> {
+  const body = AffectedConfirmationRequestSchema.parse(input);
+  return requestJson(
+    `/v1/incidents/${encodeURIComponent(incidentId)}/affected-confirmations`,
+    AffectedConfirmationResponseSchema,
+    { method: "POST", body },
+  );
+}
+
+export async function transcribeVoiceReport(audio: Blob, locale: "en" | "fr"): Promise<VoiceTranscriptionResponse> {
+  const contentType = audio.type.split(";")[0].toLowerCase();
+  if (!contentType) {
+    throw new ApiClientError("The recording did not contain an audio type.", 415, "UNSUPPORTED_AUDIO");
+  }
+
+  let response: Response;
+  try {
+    response = await fetch(`/v1/voice/transcriptions?language=${locale}`, {
+      method: "POST",
+      headers: { Accept: "application/json", "Content-Type": contentType },
+      body: audio,
+      cache: "no-store",
+      credentials: "same-origin",
+    });
+  } catch {
+    throw new ApiClientError("Voice transcription is unreachable.", 0, "NETWORK_ERROR");
+  }
+
+  const raw = await response.text();
+  let payload: unknown = null;
+  if (raw) {
+    try {
+      payload = JSON.parse(raw);
+    } catch {
+      throw new ApiClientError("Voice transcription returned an invalid response.", response.status, "INVALID_JSON");
+    }
+  }
+  if (!response.ok) {
+    const envelope = payload as { error?: { code?: string; message?: string; correlationId?: string } } | null;
+    throw new ApiClientError(
+      envelope?.error?.message ?? `Voice transcription failed with HTTP ${response.status}.`,
+      response.status,
+      envelope?.error?.code ?? "VOICE_ERROR",
+      envelope?.error?.correlationId ?? null,
+    );
+  }
+  try {
+    return VoiceTranscriptionResponseSchema.parse(payload);
+  } catch {
+    throw new ApiClientError("Voice transcription response does not match the frozen contract.", response.status, "CONTRACT_MISMATCH");
+  }
+}
+
+export function subscribeToOperationalEvents(
+  accessToken: string,
+  onEvent: () => void,
+  onError?: () => void,
+): () => void {
+  const controller = new AbortController();
+  let retryTimer: number | null = null;
+  let lastEventId: string | null = null;
+
+  const reconnect = () => {
+    if (!controller.signal.aborted) retryTimer = window.setTimeout(connect, 1_000);
+  };
+
+  const consume = (block: string) => {
+    if (!block || block.startsWith(":")) return;
+    const data = block.split("\n").find(line => line.startsWith("data:"))?.slice(5).trim();
+    const id = block.split("\n").find(line => line.startsWith("id:"))?.slice(3).trim();
+    if (!data) return;
+    try {
+      const event = OperationalEventEnvelopeSchema.parse(JSON.parse(data));
+      lastEventId = id || event.id;
+      onEvent();
+    } catch {
+      // Ignore malformed events so an isolated bad event cannot terminate the NOC stream.
+    }
+  };
+
+  const connect = async () => {
+    try {
+      const headers = new Headers({ Accept: "text/event-stream", Authorization: `Bearer ${accessToken}` });
+      if (lastEventId) headers.set("Last-Event-ID", lastEventId);
+      const response = await fetch("/v1/events/stream", {
+        headers,
+        cache: "no-store",
+        credentials: "same-origin",
+        signal: controller.signal,
+      });
+      if (!response.ok || !response.body) throw new Error("SSE stream unavailable");
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      while (!controller.signal.aborted) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const blocks = buffer.split("\n\n");
+        buffer = blocks.pop() ?? "";
+        blocks.forEach(consume);
+      }
+    } catch {
+      if (!controller.signal.aborted) onError?.();
+    }
+    reconnect();
+  };
+
+  void connect();
+  return () => {
+    controller.abort();
+    if (retryTimer !== null) window.clearTimeout(retryTimer);
+  };
 }
 
 export async function listIncidents(accessToken?: string | null): Promise<ListIncidentsResponse> {

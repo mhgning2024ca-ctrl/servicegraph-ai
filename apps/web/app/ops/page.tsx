@@ -5,7 +5,7 @@ import Link from "next/link";
 import { Activity, Clock3, Radio, RotateCcw, Siren, TriangleAlert, Users } from "lucide-react";
 import { OpsShell } from "@/components/OpsShell";
 import { Topology } from "@/components/Topology";
-import { getOperatorAccessToken, listIncidents } from "@/lib/api";
+import { getOperatorAccessToken, listIncidents, subscribeToOperationalEvents } from "@/lib/api";
 import { useLocale } from "@/lib/i18n";
 
 type Incident = Awaited<ReturnType<typeof listIncidents>>["items"][number];
@@ -67,8 +67,8 @@ export default function OpsPage() {
   const [sourceState, setSourceState] = useState<SourceState>("loading");
   const [liveIncidents, setLiveIncidents] = useState<Incident[]>([]);
 
-  async function load() {
-    setSourceState("loading");
+  async function load(silent = false) {
+    if (!silent) setSourceState("loading");
     try {
       const token = await getOperatorAccessToken();
       if (!token) {
@@ -85,7 +85,31 @@ export default function OpsPage() {
     }
   }
 
-  useEffect(() => { void load(); }, []);
+  useEffect(() => {
+    void load();
+    let unsubscribe: (() => void) | undefined;
+    let refreshTimer: number | undefined;
+
+    async function connectStream() {
+      const token = await getOperatorAccessToken();
+      if (!token) return;
+      unsubscribe = subscribeToOperationalEvents(token, () => {
+        if (refreshTimer !== undefined) return;
+        refreshTimer = window.setTimeout(() => {
+          refreshTimer = undefined;
+          void load(true);
+        }, 250);
+      });
+    }
+
+    void connectStream();
+    return () => {
+      unsubscribe?.();
+      if (refreshTimer !== undefined) window.clearTimeout(refreshTimer);
+    };
+    // The access token and stream are established once per mounted NOC view.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const incidents = sourceState === "live" ? liveIncidents : fallbackIncidents;
   const active = useMemo(() => incidents.filter(item => !["RESOLVED", "CLOSED"].includes(item.status)), [incidents]);

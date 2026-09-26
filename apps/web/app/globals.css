@@ -87,3 +87,4 @@ button:focus-visible,a:focus-visible,textarea:focus-visible{outline:2px solid va
   .remediation-actions{flex-direction:column-reverse}.remediation-actions .btn{width:100%}.timeline{overflow-x:auto;grid-template-columns:repeat(7,90px);padding-bottom:10px}.timeline:before{left:45px;right:auto;width:540px}.modal-actions{flex-direction:column-reverse}.modal-actions .btn{width:100%}
 }
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;transition-duration:.001ms!important;animation-duration:.001ms!important;animation-iteration-count:1!important}}
+.round-icon.critical{background:rgba(239,68,68,.18);color:#ffb4ae}.operator-auth{margin-top:7px;color:var(--brand);font-size:10px;font-weight:800}
