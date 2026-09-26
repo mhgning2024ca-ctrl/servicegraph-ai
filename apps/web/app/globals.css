@@ -87,3 +87,79 @@ button:focus-visible,a:focus-visible,textarea:focus-visible{outline:2px solid va
   .remediation-actions{flex-direction:column-reverse}.remediation-actions .btn{width:100%}.timeline{overflow-x:auto;grid-template-columns:repeat(7,90px);padding-bottom:10px}.timeline:before{left:45px;right:auto;width:540px}.modal-actions{flex-direction:column-reverse}.modal-actions .btn{width:100%}
 }
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;transition-duration:.001ms!important;animation-duration:.001ms!important;animation-iteration-count:1!important}}
+
+
+/* Citizen interactive tab states */
+.citizen-primary-report { margin-top: 16px; }
+.citizen-tab-card { margin-top: 24px; }
+.btn.confirmed {
+  background: #e9f9ef;
+  border: 1px solid #bfe9cc;
+  color: #146c35;
+}
+.activity-entry,
+.profile-summary {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 16px;
+  padding: 14px;
+  border-radius: 14px;
+  background: #f7fafc;
+  border: 1px solid #e3eaf1;
+}
+.activity-entry p,
+.profile-summary p {
+  margin: 4px 0 0;
+  color: #69798a;
+  font-size: 12px;
+  line-height: 1.45;
+}
+.empty-state {
+  min-height: 180px;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 10px;
+  color: #718096;
+  text-align: center;
+}
+.empty-state p {
+  max-width: 280px;
+  margin: 0;
+  line-height: 1.5;
+  font-size: 13px;
+}
+.profile-avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  display: grid;
+  place-items: center;
+  color: white;
+  background: linear-gradient(135deg, #17374c, #1a6467);
+  font-weight: 800;
+  font-size: 13px;
+}
+.profile-language-row {
+  margin-top: 12px;
+  padding: 13px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  border-radius: 14px;
+  background: #f7fafc;
+  border: 1px solid #e3eaf1;
+  color: #607083;
+  font-size: 12px;
+}
+.profile-language-row .language-toggle {
+  background: white;
+  border-color: #dce5ee;
+  color: #718096;
+}
+.profile-language-row .language-toggle button.active {
+  color: #0b1725;
+  background: #edf4f7;
+}
