@@ -8,6 +8,12 @@ export const JsonPrimitiveSchema = z.union([z.string(), z.number(), z.boolean()]
 export const ScalarMetadataSchema = z.record(z.string(), JsonPrimitiveSchema);
 export const JsonObjectSchema = z.record(z.string(), z.unknown());
 
+// Canonical shared contract for routes that require the Idempotency-Key header.
+// Transport layers remain responsible for reading the HTTP header and validating
+// it with this schema before invoking state-changing create/execute operations.
+export const IdempotencyKeySchema = z.string().min(1);
+export type IdempotencyKey = z.infer<typeof IdempotencyKeySchema>;
+
 export const IncidentStatusSchema = z.enum([
   "DETECTED",
   "INVESTIGATING",
