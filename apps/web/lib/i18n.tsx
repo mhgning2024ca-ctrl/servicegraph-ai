@@ -103,7 +103,9 @@ const dictionary = {
     proposalCreated: "Remediation proposal confirmed by the backend",
     backendConfirmed: "Operation confirmed by the backend",
     publishRecovery: "Publish verified recovery update",
-    communicationCreated: "Recovery communication confirmed by the backend"
+    communicationCreated: "Recovery communication confirmed by the backend",
+    resetGraph: "Reset selection",
+    causalGraphAccessible: "Accessible causal evidence graph"
   },
   fr: {
     tagline: "Du signalement à la cause racine, jusqu’à une résolution sécurisée.",
@@ -203,7 +205,9 @@ const dictionary = {
     proposalCreated: "Proposition de remédiation confirmée par le backend",
     backendConfirmed: "Opération confirmée par le backend",
     publishRecovery: "Publier le rétablissement vérifié",
-    communicationCreated: "Communication de rétablissement confirmée par le backend"
+    communicationCreated: "Communication de rétablissement confirmée par le backend",
+    resetGraph: "Réinitialiser la sélection",
+    causalGraphAccessible: "Graphe causal des preuves accessible"
   }
 } as const;
 
