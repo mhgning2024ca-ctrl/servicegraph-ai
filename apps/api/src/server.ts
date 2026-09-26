@@ -1,6 +1,9 @@
 import { createApiApp } from "./app/create-api-app.js";
 import { createRuntimeAuthorizationAdapter } from "./auth/runtime-authorization.js";
-import { createSeededDemoRepository } from "./mocks/demo-runtime.js";
+import {
+  createSeededDemoRepository,
+  DeterministicIncidentAnalysisAdapter,
+} from "./mocks/demo-runtime.js";
 import { createPostgresPool, PostgresBackendRepository } from "@servicegraph/db";
 import { createRuntimeAiIncidentAnalysisAdapter } from "./modules/incidents/runtime-ai-adapter.js";
 
@@ -15,7 +18,9 @@ const databaseUrl = process.env.DATABASE_URL?.trim();
 const postgres = databaseUrl ? createPostgresPool(databaseUrl) : null;
 const repository = postgres ? new PostgresBackendRepository(postgres) : createSeededDemoRepository();
 const authorization = createRuntimeAuthorizationAdapter(process.env);
-const incidentAnalysis = createRuntimeAiIncidentAnalysisAdapter(repository, process.env);
+const incidentAnalysis = process.env.AUTH_MODE?.trim().toLowerCase() === "mock"
+  ? new DeterministicIncidentAnalysisAdapter()
+  : createRuntimeAiIncidentAnalysisAdapter(repository, process.env);
 
 const app = await createApiApp({
   logger: true,
