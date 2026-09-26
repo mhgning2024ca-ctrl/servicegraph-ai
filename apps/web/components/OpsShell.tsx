@@ -23,7 +23,7 @@ export function OpsShell({ children, active = "overview" }: { children: ReactNod
       <aside className={open ? "ops-sidebar open" : "ops-sidebar"}>
         <div className="sidebar-top">
           <Brand />
-          <button className="icon-btn sidebar-close" onClick={() => setOpen(false)} aria-label="Close menu"><X size={18}/></button>
+          <button className="icon-btn sidebar-close" onClick={() => setOpen(false)} aria-label={t("closeMenu")}><X size={18}/></button>
         </div>
         <nav>
           {items.map(([href,label,Icon,key]) => (
@@ -34,16 +34,16 @@ export function OpsShell({ children, active = "overview" }: { children: ReactNod
         </nav>
         <div className="operator">
           <span className="avatar">HG</span>
-          <div><strong>Hadi Gning</strong><small>Incident Manager</small></div>
+          <div><strong>Hadi Gning</strong><small>{t("incidentManager")}</small></div>
         </div>
       </aside>
 
-      {open && <button className="scrim" onClick={() => setOpen(false)} aria-label="Close navigation"/>}
+      {open && <button className="scrim" onClick={() => setOpen(false)} aria-label={t("closeNavigation")}/>}
 
       <div className="ops-main">
         <header className="ops-topbar">
           <div className="topbar-title">
-            <button className="icon-btn mobile-menu" onClick={() => setOpen(true)} aria-label="Open navigation"><Menu size={20}/></button>
+            <button className="icon-btn mobile-menu" onClick={() => setOpen(true)} aria-label={t("openNavigation")}><Menu size={20}/></button>
             <div><small className="live-label">{t("live")}</small><h1>{t("commandCenter")}</h1></div>
           </div>
           <LanguageToggle />
