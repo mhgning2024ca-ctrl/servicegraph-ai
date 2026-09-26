@@ -3,13 +3,13 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "exports": "./src/index.ts",
+  "exports": "./index.ts",
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },
   "dependencies": {
-    "@servicegraph/ai": "file:../ai",
+    "@servicegraph/ai": "file:../../ai",
     "zod": "^3.24.2"
   },
   "devDependencies": {

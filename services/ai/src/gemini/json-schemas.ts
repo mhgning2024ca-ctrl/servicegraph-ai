@@ -68,3 +68,23 @@ export const remediationJsonSchema = {
     assumptions: { type: "array", items: { type: "string" } },
   },
 } as const;
+
+export const classificationJsonSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["symptomCodes"],
+  properties: {
+    symptomCodes: { type: "array", maxItems: 20, items: { type: "string" } },
+  },
+} as const;
+
+export const communicationJsonSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["language", "text", "evidenceIds"],
+  properties: {
+    language: { type: "string", enum: ["en", "fr"] },
+    text: { type: "string" },
+    evidenceIds: { type: "array", items: { type: "string" } },
+  },
+} as const;
