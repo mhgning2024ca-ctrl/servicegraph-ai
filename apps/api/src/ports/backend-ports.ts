@@ -11,6 +11,7 @@ import type {
   RootCauseHypothesis,
   VerificationSnapshot,
 } from "@servicegraph/contracts";
+import type { TelemetrySample } from "@servicegraph/contracts";
 
 export interface AuditEventInput {
   id: string;
@@ -71,6 +72,11 @@ export interface BackendRepository {
   listIntegrationHealth(): Promise<readonly IntegrationHealthRecord[]>;
 
   appendAudit(event: AuditEventInput): Promise<void>;
+}
+
+/** Persistence boundary for canonical telemetry ingestion. */
+export interface TelemetryStore {
+  saveTelemetrySamples(samples: readonly TelemetrySample[]): Promise<void>;
 }
 
 export type IntegrationResult<T> =

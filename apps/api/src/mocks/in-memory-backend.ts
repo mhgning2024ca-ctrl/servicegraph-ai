@@ -11,15 +11,17 @@ import type {
   RootCauseHypothesis,
   VerificationSnapshot,
 } from "@servicegraph/contracts";
+import type { TelemetrySample } from "@servicegraph/contracts";
 
 import type {
   AuditEventInput,
   BackendRepository,
   IncidentListFilter,
   IntegrationHealthRecord,
+  TelemetryStore,
 } from "../ports/backend-ports.js";
 
-export class InMemoryBackendRepository implements BackendRepository {
+export class InMemoryBackendRepository implements BackendRepository, TelemetryStore {
   readonly reports = new Map<string, CustomerReport>();
   readonly graphs = new Map<string, IncidentGraph>();
   readonly incidents = new Map<string, IncidentSummary>();
@@ -33,6 +35,7 @@ export class InMemoryBackendRepository implements BackendRepository {
   readonly communications = new Map<string, CustomerCommunication>();
   readonly integrationHealth = new Map<string, IntegrationHealthRecord>();
   readonly auditEvents: AuditEventInput[] = [];
+  readonly telemetrySamples = new Map<string, TelemetrySample>();
 
   constructor(private ready = true) {}
 
@@ -149,5 +152,9 @@ export class InMemoryBackendRepository implements BackendRepository {
 
   async listIntegrationHealth(): Promise<readonly IntegrationHealthRecord[]> {
     return [...this.integrationHealth.values()];
+  }
+
+  async saveTelemetrySamples(samples: readonly TelemetrySample[]): Promise<void> {
+    for (const sample of samples) this.telemetrySamples.set(sample.id, sample);
   }
 }

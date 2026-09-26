@@ -26,6 +26,7 @@ export type {
   IncidentAnalysisResult,
   IntegrationResult,
   SimulatorExecutionAdapter,
+  TelemetryStore,
   VerificationAdapter,
 } from "./ports/backend-ports.js";
 export {

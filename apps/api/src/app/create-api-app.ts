@@ -24,11 +24,15 @@ import {
 } from "../modules/reports/report-service.js";
 import { registerReportRoutes } from "../modules/reports/routes.js";
 import { registerSimulatorRoutes } from "../modules/simulator/routes.js";
+import { registerTelemetryRoutes } from "../modules/telemetry/routes.js";
+import { registerPublicRoutes } from "../modules/public/routes.js";
+import { registerVoiceRoutes } from "../modules/voice/routes.js";
 import type {
   BackendRepository,
   IncidentAnalysisAdapter,
   ScenarioRuntime,
   SimulatorExecutionAdapter,
+  TelemetryStore,
   VerificationAdapter,
 } from "../ports/backend-ports.js";
 import {
@@ -52,6 +56,7 @@ export interface ApiDependencies {
   simulator: SimulatorExecutionAdapter;
   verifier: VerificationAdapter;
   scenarioRuntime: ScenarioRuntime;
+  telemetry: TelemetryStore;
 }
 
 export interface CreateApiAppOptions extends ApiInfrastructureOptions {
@@ -105,6 +110,7 @@ export async function createApiApp(
     options.dependencies?.verifier ?? new DeterministicVerificationAdapter();
   const scenarioRuntime =
     options.dependencies?.scenarioRuntime ?? new DeterministicScenarioRuntime();
+  const telemetry = options.dependencies?.telemetry ?? repository as unknown as TelemetryStore;
 
   const audit = new AuditService(repository);
   const reportService = new ReportService(
@@ -125,11 +131,14 @@ export async function createApiApp(
   );
 
   registerHealthRoutes(app, repository, authorization);
-  registerReportRoutes(app, reportService);
+  registerReportRoutes(app, reportService, repository, authorization);
   registerIncidentRoutes(app, repository, authorization, analysis);
   registerRemediationRoutes(app, repository, authorization, remediation, events);
   registerCommunicationRoutes(app, repository, authorization, events, audit);
   registerSimulatorRoutes(app, scenarioRuntime, authorization);
+  registerTelemetryRoutes(app, telemetry, authorization, events);
+  registerPublicRoutes(app, repository, events);
+  registerVoiceRoutes(app);
   registerSseRoute(app, events, authorization);
   return app;
 }
