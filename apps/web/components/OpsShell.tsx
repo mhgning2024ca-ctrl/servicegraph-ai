@@ -1,50 +1,63 @@
 "use client";
 
 import Link from "next/link";
-import { ReactNode, useState } from "react";
+import { ReactNode, useEffect, useState } from "react";
 import { BarChart3, FileWarning, LayoutDashboard, Menu, Network, ScrollText, Siren, X } from "lucide-react";
 import { Brand } from "@/components/Brand";
+import { getOperatorProfile, type OperatorProfile } from "@/lib/auth";
 import { LanguageToggle, useLocale } from "@/lib/i18n";
 
-export function OpsShell({ children, active = "overview" }: { children: ReactNode; active?: "overview"|"incidents" }) {
-  const { t } = useLocale();
+type Section = "overview" | "incidents" | "network" | "reports" | "analytics" | "audit";
+
+export function OpsShell({ children, active = "overview" }: { children: ReactNode; active?: Section }) {
+  const { t, locale } = useLocale();
   const [open, setOpen] = useState(false);
+  const [profile, setProfile] = useState<OperatorProfile | null>(null);
+
+  useEffect(() => {
+    void getOperatorProfile().then(setProfile);
+  }, []);
+
   const items = [
     ["/ops", t("overview"), LayoutDashboard, "overview"],
     ["/ops/incidents/INC-2048", t("incidents"), Siren, "incidents"],
-    ["/ops", t("network"), Network, "network"],
-    ["/ops", t("reports"), FileWarning, "reports"],
-    ["/ops", t("analytics"), BarChart3, "analytics"],
-    ["/ops", t("audit"), ScrollText, "audit"]
+    ["/ops/network", t("network"), Network, "network"],
+    ["/ops/reports", t("reports"), FileWarning, "reports"],
+    ["/ops/analytics", t("analytics"), BarChart3, "analytics"],
+    ["/ops/audit", t("audit"), ScrollText, "audit"]
   ] as const;
+
+  const displayName = profile?.name ?? profile?.nickname ?? t("guestOperator");
+  const role = profile?.roles[0] ? formatRole(profile.roles[0], locale) : profile ? t("authenticatedOperator") : t("guestSession");
+  const initials = displayName.split(/\s+/).filter(Boolean).slice(0, 2).map(part => part[0]?.toUpperCase()).join("") || "OP";
 
   return (
     <div className="ops-layout">
       <aside className={open ? "ops-sidebar open" : "ops-sidebar"}>
         <div className="sidebar-top">
           <Brand />
-          <button className="icon-btn sidebar-close" onClick={() => setOpen(false)} aria-label="Close menu"><X size={18}/></button>
+          <button className="icon-btn sidebar-close" onClick={() => setOpen(false)} aria-label={t("closeMenu")}><X size={18}/></button>
         </div>
-        <nav>
+        <nav aria-label={t("operationsNavigation")}>
           {items.map(([href,label,Icon,key]) => (
-            <Link href={href} key={key} className={active === key ? "active" : ""} onClick={() => setOpen(false)}>
+            <Link href={href} key={key} className={active === key ? "active" : ""} onClick={() => setOpen(false)} aria-current={active === key ? "page" : undefined}>
               <Icon size={18}/><span>{label}</span>
             </Link>
           ))}
         </nav>
         <div className="operator">
-          <span className="avatar">HG</span>
-          <div><strong>Hadi Gning</strong><small>Incident Manager</small></div>
+          <span className="avatar">{initials}</span>
+          <div><strong>{displayName}</strong><small>{role}</small></div>
         </div>
       </aside>
 
-      {open && <button className="scrim" onClick={() => setOpen(false)} aria-label="Close navigation"/>}
+      {open && <button className="scrim" onClick={() => setOpen(false)} aria-label={t("closeNavigation")}/>} 
 
       <div className="ops-main">
         <header className="ops-topbar">
           <div className="topbar-title">
-            <button className="icon-btn mobile-menu" onClick={() => setOpen(true)} aria-label="Open navigation"><Menu size={20}/></button>
-            <div><small className="live-label">{t("live")}</small><h1>{t("commandCenter")}</h1></div>
+            <button className="icon-btn mobile-menu" onClick={() => setOpen(true)} aria-label={t("openNavigation")}><Menu size={20}/></button>
+            <div><small className="live-label">ServiceGraph AI</small><h1>{t("commandCenter")}</h1></div>
           </div>
           <LanguageToggle />
         </header>
@@ -52,4 +65,15 @@ export function OpsShell({ children, active = "overview" }: { children: ReactNod
       </div>
     </div>
   );
+}
+
+function formatRole(role: string, locale: "fr" | "en") {
+  const normalized = role.toUpperCase();
+  const labels: Record<string, { en: string; fr: string }> = {
+    CITIZEN: { en: "Citizen", fr: "Citoyen" },
+    OPERATOR: { en: "Operator", fr: "Opérateur" },
+    INCIDENT_MANAGER: { en: "Incident Manager", fr: "Gestionnaire d’incident" },
+    ADMINISTRATOR: { en: "Administrator", fr: "Administrateur" },
+  };
+  return labels[normalized]?.[locale] ?? role;
 }
