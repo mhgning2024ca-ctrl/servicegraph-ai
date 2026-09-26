@@ -37,12 +37,6 @@ export const PublicIncidentListResponseSchema = z.object({
 });
 export type PublicIncidentListResponse = z.infer<typeof PublicIncidentListResponseSchema>;
 
-export const AffectedConfirmationRequestSchema = z.object({
-  serviceId: UuidSchema.nullable(),
-  areaCode: z.string().nullable(),
-});
-export type AffectedConfirmationRequest = z.infer<typeof AffectedConfirmationRequestSchema>;
-
 export const AffectedConfirmationResponseSchema = z.object({
   accepted: z.literal(true),
   incidentId: UuidSchema,
