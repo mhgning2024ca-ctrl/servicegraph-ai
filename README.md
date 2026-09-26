@@ -97,4 +97,8 @@ Initial documents:
 
 ## Status
 
-Architecture/specification phase in progress. Implementation agents must not invent missing contracts; unresolved decisions are escalated and documented.
+Vertical integration and demo-hardening phase. The canonical implementation is assembled on
+`integration`; only a CI-green, end-to-end verified commit may be promoted to `main` and
+deployed. Provider adapters or UI surfaces are not considered complete until they are wired
+into the report-to-recovery runtime path and verified against the real dependency or an
+explicitly identified degraded mode.
