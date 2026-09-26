@@ -60,7 +60,7 @@ export default function IncidentPage() {
             </div>
             <div className="root-cause">
               <BrainCircuit size={22}/>
-              <div><strong>NODE-17</strong><span>Packet-loss / latency degradation</span></div>
+              <div><strong>NODE-17</strong><span>{t("rootCauseDetail")}</span></div>
             </div>
             <p>{t("rationale")}</p>
             <div className="evidence-list">
@@ -76,7 +76,7 @@ export default function IncidentPage() {
               <div><small className="section-kicker">{t("telemetryLabel")}</small><h3>{t("latency")}</h3></div>
               <strong>242 ms</strong>
             </div>
-            <svg className="telemetry-chart" viewBox="0 0 320 110" role="img" aria-label="Latency rises from normal to degraded">
+            <svg className="telemetry-chart" viewBox="0 0 320 110" role="img" aria-label={t("latencyChartLabel")}>
               <line x1="0" y1="96" x2="320" y2="96"/>
               <polyline points="0,90 28,87 56,84 84,80 112,72 140,61 168,47 196,34 224,22 252,12 280,10 320,16"/>
             </svg>
@@ -93,7 +93,7 @@ export default function IncidentPage() {
             </div>
             <div className="remediation-grid">
               <div><small>{t("target")}</small><strong>NODE-17 → NODE-12</strong></div>
-              <div><small>Risk</small><strong>{t("risk")}</strong></div>
+              <div><small>{t("riskLabel")}</small><strong>{t("risk")}</strong></div>
               <div className="wide"><small>{t("expectedEffectLabel")}</small><strong>{t("expectedEffect")}</strong></div>
             </div>
             {approved ? (
@@ -114,7 +114,7 @@ export default function IncidentPage() {
               const complete = index < (approved ? 4 : 3);
               const current = index === (approved ? 4 : 3);
               return (
-                <div key={stage[0]} className={"timeline-step "+(complete ? "complete" : current ? "current" : "")}>
+                <div key={`${stage}-${index}`} className={"timeline-step "+(complete ? "complete" : current ? "current" : "")}>
                   <span>{complete ? <CheckCircle2 size={17}/> : current ? <Activity size={17}/> : index+1}</span>
                   <small>{stage}</small>
                 </div>
@@ -132,7 +132,7 @@ export default function IncidentPage() {
               <p>{t("approvalBody")}</p>
               <div className="approval-summary">
                 <div><small>{t("target")}</small><strong>NODE-17 → NODE-12</strong></div>
-                <div><small>Risk</small><strong>{t("risk")}</strong></div>
+                <div><small>{t("riskLabel")}</small><strong>{t("risk")}</strong></div>
               </div>
               <div className="modal-actions">
                 <button className="btn secondary" onClick={() => setModal(false)}>{t("cancel")}</button>
