@@ -1,0 +1,87 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+usage() {
+  cat <<'USAGE'
+Usage: ./deploy.sh --env-file PATH --compose-file PATH --public-url URL [--state-dir PATH]
+
+Deploys origin/main with a fast-forward-only update, records the previous and
+new commit SHAs, validates Compose, builds, starts, and checks canonical health
+endpoints. Run as the non-root deployment user from a clean repository clone.
+USAGE
+}
+
+env_file=""
+compose_file=""
+public_url=""
+state_dir=""
+
+while (($#)); do
+  case "$1" in
+    --env-file) env_file="${2:-}"; shift 2 ;;
+    --compose-file) compose_file="${2:-}"; shift 2 ;;
+    --public-url) public_url="${2:-}"; shift 2 ;;
+    --state-dir) state_dir="${2:-}"; shift 2 ;;
+    -h|--help) usage; exit 0 ;;
+    *) usage >&2; exit 64 ;;
+  esac
+done
+
+if [[ -z "${env_file}" || -z "${compose_file}" || -z "${public_url}" ]]; then
+  usage >&2
+  exit 64
+fi
+
+repo_root="$(git rev-parse --show-toplevel 2>/dev/null)" || {
+  echo "Run deploy.sh from inside the ServiceGraph AI repository." >&2
+  exit 1
+}
+cd "${repo_root}"
+
+env_file="$(realpath "${env_file}")"
+compose_file="$(realpath "${compose_file}")"
+if [[ -z "${state_dir}" ]]; then
+  state_dir="$(dirname "${repo_root}")/.servicegraph-deployment-state"
+else
+  state_dir="$(realpath -m "${state_dir}")"
+fi
+
+if [[ ! -f "${env_file}" || ! -f "${compose_file}" ]]; then
+  echo "The env file and Compose file must both exist." >&2
+  exit 66
+fi
+if [[ "$(stat -c '%a' "${env_file}")" != "600" ]]; then
+  echo "Refusing deployment: the populated env file must have mode 0600." >&2
+  exit 77
+fi
+if [[ -n "$(git status --porcelain)" ]]; then
+  echo "Refusing deployment from a dirty worktree." >&2
+  exit 1
+fi
+if [[ ! "${public_url}" =~ ^https://[^/]+/?$ ]]; then
+  echo "--public-url must be an HTTPS origin without a path." >&2
+  exit 64
+fi
+
+previous_sha="$(git rev-parse HEAD)"
+git fetch origin
+git checkout main
+git pull --ff-only origin main
+new_sha="$(git rev-parse HEAD)"
+
+install -d -m 0700 "${state_dir}"
+printf '%s\n' "${previous_sha}" > "${state_dir}/previous-sha"
+printf '%s\n' "${new_sha}" > "${state_dir}/current-sha"
+chmod 0600 "${state_dir}/previous-sha" "${state_dir}/current-sha"
+
+compose=(docker compose --env-file "${env_file}" -f "${compose_file}")
+"${compose[@]}" config --quiet
+"${compose[@]}" build --pull
+"${compose[@]}" up -d --remove-orphans
+"${compose[@]}" ps
+
+base_url="${public_url%/}"
+curl --fail --show-error --silent --retry 5 --retry-delay 2 "${base_url}/v1/health/live" >/dev/null
+curl --fail --show-error --silent --retry 5 --retry-delay 2 "${base_url}/v1/health/ready" >/dev/null
+
+echo "Deployment ${new_sha} is live and passed liveness/readiness checks."
