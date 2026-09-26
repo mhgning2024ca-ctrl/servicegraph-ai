@@ -6,12 +6,14 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "test": "vitest run",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "start": "node dist/src/server.js"
   },
   "dependencies": {
     "@servicegraph/contracts": "file:../../packages/contracts",
     "fastify": "^5.6.2",
-    "zod": "^4.1.11"
+    "zod": "^4.1.11",
+    "jose": "^6.1.0"
   },
   "devDependencies": {
     "@types/node": "^22.18.6",
