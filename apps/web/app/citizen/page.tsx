@@ -1,14 +1,15 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Activity, CircleUserRound, CloudOff, MapPin, Mic, RotateCcw, Send, TriangleAlert, Type, Wifi } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Activity, CircleUserRound, CloudOff, MapPin, Mic, RotateCcw, Send, Square, TriangleAlert, Type, Wifi } from "lucide-react";
 import { Brand } from "@/components/Brand";
-import { ApiClientError, createCitizenReport } from "@/lib/api";
+import { ApiClientError, createCitizenReport, transcribeVoiceReport } from "@/lib/api";
 import { LanguageToggle, useLocale } from "@/lib/i18n";
 import { enqueueReport, flushReportQueue, getQueuedReports } from "@/lib/report-queue";
 import type { CreateReportRequest, CreateReportResponse } from "../../../../packages/contracts/dist/index.js";
 
-type ReportMode = "idle" | "text" | "voice" | "sending" | "sent" | "queued" | "retrying" | "error";
+type ReportMode = "idle" | "text" | "voice" | "recording" | "transcribing" | "voice-error" | "sending" | "sent" | "queued" | "retrying" | "error";
+type VoiceError = "permission" | "provider" | "unsupported" | "size" | null;
 type CitizenTab = "status" | "report" | "activity" | "profile";
 type Receipt = CreateReportResponse["receipt"];
 
@@ -22,6 +23,10 @@ export default function CitizenPage() {
   const [correlationId, setCorrelationId] = useState<string | null>(null);
   const [online, setOnline] = useState(true);
   const [queuedCount, setQueuedCount] = useState(0);
+  const [voiceError, setVoiceError] = useState<VoiceError>(null);
+  const recorderRef = useRef<MediaRecorder | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
 
   useEffect(() => {
     setOnline(navigator.onLine);
@@ -37,6 +42,13 @@ export default function CitizenPage() {
     return () => {
       window.removeEventListener("online", onOnline);
       window.removeEventListener("offline", onOffline);
+      const recorder = recorderRef.current;
+      if (recorder && recorder.state !== "inactive") {
+        recorder.onstop = null;
+        recorder.ondataavailable = null;
+        recorder.stop();
+      }
+      streamRef.current?.getTracks().forEach(track => track.stop());
     };
     // Initial queue state is intentionally read only on mount.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -98,6 +110,72 @@ export default function CitizenPage() {
       : "I am also affected by the reported Internet degradation in Ottawa Centre.";
     setTab("report");
     await submitPayload(buildReport(message));
+  }
+
+  async function startVoiceRecording() {
+    setVoiceError(null);
+    setCorrelationId(null);
+    if (!navigator.onLine) {
+      setVoiceError("provider");
+      setMode("voice-error");
+      return;
+    }
+    if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") {
+      setVoiceError("unsupported");
+      setMode("voice-error");
+      return;
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      streamRef.current = stream;
+      chunksRef.current = [];
+      const mimeType = preferredRecordingType();
+      const recorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
+      recorderRef.current = recorder;
+      recorder.ondataavailable = event => {
+        if (event.data.size > 0) chunksRef.current.push(event.data);
+      };
+      recorder.onstop = () => {
+        const type = recorder.mimeType || mimeType || "audio/webm";
+        const blob = new Blob(chunksRef.current, { type });
+        stream.getTracks().forEach(track => track.stop());
+        streamRef.current = null;
+        recorderRef.current = null;
+        void transcribeRecording(blob);
+      };
+      recorder.start(250);
+      setMode("recording");
+    } catch {
+      streamRef.current?.getTracks().forEach(track => track.stop());
+      streamRef.current = null;
+      recorderRef.current = null;
+      setVoiceError("permission");
+      setMode("voice-error");
+    }
+  }
+
+  function stopVoiceRecording() {
+    const recorder = recorderRef.current;
+    if (recorder && recorder.state !== "inactive") recorder.stop();
+  }
+
+  async function transcribeRecording(blob: Blob) {
+    setMode("transcribing");
+    try {
+      const result = await transcribeVoiceReport(blob, locale);
+      setText(result.text);
+      setMode("text");
+      setTab("report");
+    } catch (error) {
+      if (error instanceof ApiClientError) {
+        setCorrelationId(error.correlationId);
+        setVoiceError(error.code === "AUDIO_TOO_LARGE" ? "size" : "provider");
+      } else {
+        setVoiceError("provider");
+      }
+      setMode("voice-error");
+    }
   }
 
   async function retryQueuedReports() {
@@ -177,8 +255,37 @@ export default function CitizenPage() {
               <div className="voice-state" role="status">
                 <span className="voice-orb"><Mic size={25}/></span>
                 <strong>{t("voiceIntake")}</strong>
-                <p>{t("voiceUnavailable")}</p>
-                <button className="text-action" onClick={() => openReport()}>{t("type")}</button>
+                <p>{t("voiceReady")}</p>
+                <button className="btn primary full" onClick={() => void startVoiceRecording()} disabled={!online}><Mic size={17}/>{t("startRecording")}</button>
+                <button className="text-action" onClick={() => openReport()}>{t("typeInstead")}</button>
+              </div>
+            )}
+
+            {mode === "recording" && (
+              <div className="voice-state" role="status" aria-live="polite">
+                <span className="voice-orb"><Mic size={25}/></span>
+                <strong>{t("recordingNow")}</strong>
+                <p>{t("recordingHint")}</p>
+                <button className="btn primary full" onClick={stopVoiceRecording}><Square size={16}/>{t("stopRecording")}</button>
+              </div>
+            )}
+
+            {mode === "transcribing" && (
+              <div className="voice-state" role="status" aria-live="polite">
+                <span className="voice-orb"><RotateCcw size={25}/></span>
+                <strong>{t("transcribingVoice")}</strong>
+                <p>{t("transcriptionReviewHint")}</p>
+              </div>
+            )}
+
+            {mode === "voice-error" && (
+              <div className="voice-state" role="alert">
+                <span className="voice-orb"><TriangleAlert size={25}/></span>
+                <strong>{t("voiceTranscriptionFailed")}</strong>
+                <p>{voiceError === "permission" ? t("microphoneDenied") : voiceError === "unsupported" ? t("microphoneUnsupported") : voiceError === "size" ? t("audioTooLarge") : t("voiceProviderUnavailable")}</p>
+                {correlationId && <small className="mono">{correlationId}</small>}
+                <button className="text-action" onClick={() => openReport()}>{t("typeInstead")}</button>
+                {online && <button className="text-action" onClick={() => setMode("voice")}><RotateCcw size={15}/>{t("retry")}</button>}
               </div>
             )}
 
@@ -238,7 +345,7 @@ export default function CitizenPage() {
             </div>
             <p className="location"><MapPin size={15}/>{t("location")}</p>
             <div className="investigating"><span/>{t("investigating")}</div>
-            <button className="btn light full" onClick={() => void confirmAffected()} disabled={mode === "sending" || mode === "retrying"}>{t("affectedToo")}</button>
+            <button className="btn light full" onClick={() => void confirmAffected()} disabled={mode === "sending" || mode === "retrying" || mode === "recording" || mode === "transcribing"}>{t("affectedToo")}</button>
           </section>
         </div>
 
@@ -271,6 +378,11 @@ export default function CitizenPage() {
       </div>
     </main>
   );
+}
+
+function preferredRecordingType(): string | undefined {
+  const candidates = ["audio/webm;codecs=opus", "audio/webm", "audio/ogg;codecs=opus", "audio/mp4"];
+  return candidates.find(type => MediaRecorder.isTypeSupported(type));
 }
 
 function SignalIcon() {
