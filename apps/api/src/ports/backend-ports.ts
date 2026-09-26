@@ -31,10 +31,10 @@ export interface IntegrationHealthRecord {
 }
 
 export interface IncidentListFilter {
-  status?: IncidentSummary["status"];
-  severity?: IncidentSummary["severity"];
+  status?: IncidentSummary["status"] | undefined;
+  severity?: IncidentSummary["severity"] | undefined;
   limit: number;
-  cursor?: string;
+  cursor?: string | undefined;
 }
 
 export interface BackendRepository {
