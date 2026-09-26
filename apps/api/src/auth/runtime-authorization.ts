@@ -1,4 +1,4 @@
-import { createRemoteJWKSet, jwtVerify } from "jose";
+import { createPublicKey, verify as verifySignature } from "node:crypto";
 import type { FastifyRequest } from "fastify";
 
 import { ApiError } from "../shared/api-error.js";
@@ -19,6 +19,29 @@ const roleSet = new Set<string>([
   "ADMINISTRATOR",
 ]);
 
+interface JwtHeader {
+  alg?: unknown;
+  kid?: unknown;
+}
+interface JwtPayload {
+  sub?: unknown;
+  iss?: unknown;
+  aud?: unknown;
+  exp?: unknown;
+  nbf?: unknown;
+  permissions?: unknown;
+  [key: string]: unknown;
+}
+interface Jwk {
+  kid?: string;
+  kty?: string;
+  n?: string;
+  e?: string;
+  alg?: string;
+  use?: string;
+}
+interface JwksResponse { keys?: Jwk[] }
+
 export function createRuntimeAuthorizationAdapter(
   env: NodeJS.ProcessEnv = process.env,
 ): AuthorizationAdapter {
@@ -37,7 +60,9 @@ export function createRuntimeAuthorizationAdapter(
   const audience = env.AUTH0_AUDIENCE?.trim();
   if (!domain || !audience) throw new Error("AUTH0_DOMAIN and AUTH0_AUDIENCE are required in Auth0 mode.");
 
-  const issuer = domain.startsWith("https://") ? domain.replace(/\/?$/, "/") : `https://${domain.replace(/\/?$/, "")}/`;
+  const issuer = domain.startsWith("https://")
+    ? domain.replace(/\/?$/, "/")
+    : `https://${domain.replace(/\/?$/, "")}/`;
   const roleClaim = env.AUTH0_ROLES_CLAIM?.trim() || "https://servicegraph.ai/roles";
   return new Auth0AuthorizationAdapter(issuer, audience, roleClaim);
 }
@@ -81,46 +106,90 @@ class DemoAuthorizationAdapter implements AuthorizationAdapter {
 }
 
 class Auth0AuthorizationAdapter implements AuthorizationAdapter {
-  private readonly jwks: ReturnType<typeof createRemoteJWKSet>;
+  private cachedKeys: { expiresAt: number; keys: Jwk[] } | null = null;
 
   constructor(
     private readonly issuer: string,
     private readonly audience: string,
     private readonly roleClaim: string,
-  ) {
-    this.jwks = createRemoteJWKSet(new URL(".well-known/jwks.json", issuer));
-  }
+  ) {}
 
   async authenticate(request: FastifyRequest): Promise<AuthenticatedActor> {
     const token = bearer(request);
+    const payload = await this.verifyJwt(token);
+    if (typeof payload.sub !== "string" || !payload.sub) throw unauthorized();
+
+    const rawPermissions = Array.isArray(payload.permissions) ? payload.permissions : [];
+    const permissions = new Set(
+      rawPermissions.filter(
+        (value): value is CanonicalPermission =>
+          typeof value === "string" && permissionSet.has(value),
+      ),
+    );
+
+    const rawRoles = payload[this.roleClaim];
+    const roles = new Set(
+      (Array.isArray(rawRoles) ? rawRoles : []).filter(
+        (value): value is CanonicalRole =>
+          typeof value === "string" && roleSet.has(value),
+      ),
+    );
+
+    return { subject: payload.sub, permissions, roles };
+  }
+
+  private async verifyJwt(token: string): Promise<JwtPayload> {
+    const parts = token.split(".");
+    if (parts.length !== 3) throw unauthorized();
+    const [encodedHeader, encodedPayload, encodedSignature] = parts;
+    if (!encodedHeader || !encodedPayload || !encodedSignature) throw unauthorized();
+
+    let header: JwtHeader;
+    let payload: JwtPayload;
     try {
-      const { payload } = await jwtVerify(token, this.jwks, {
-        issuer: this.issuer,
-        audience: this.audience,
-      });
-      if (typeof payload.sub !== "string" || !payload.sub) throw unauthorized();
-
-      const rawPermissions = Array.isArray(payload.permissions) ? payload.permissions : [];
-      const permissions = new Set(
-        rawPermissions.filter(
-          (value): value is CanonicalPermission =>
-            typeof value === "string" && permissionSet.has(value),
-        ),
-      );
-
-      const rawRoles = payload[this.roleClaim];
-      const roles = new Set(
-        (Array.isArray(rawRoles) ? rawRoles : []).filter(
-          (value): value is CanonicalRole =>
-            typeof value === "string" && roleSet.has(value),
-        ),
-      );
-
-      return { subject: payload.sub, permissions, roles };
-    } catch (error) {
-      if (error instanceof ApiError) throw error;
+      header = JSON.parse(Buffer.from(encodedHeader, "base64url").toString("utf8")) as JwtHeader;
+      payload = JSON.parse(Buffer.from(encodedPayload, "base64url").toString("utf8")) as JwtPayload;
+    } catch {
       throw unauthorized();
     }
+
+    if (header.alg !== "RS256" || typeof header.kid !== "string") throw unauthorized();
+    const jwk = (await this.keys()).find((key) => key.kid === header.kid);
+    if (!jwk || jwk.kty !== "RSA" || !jwk.n || !jwk.e) throw unauthorized();
+
+    const key = createPublicKey({
+      key: { kty: "RSA", n: jwk.n, e: jwk.e } as JsonWebKey,
+      format: "jwk",
+    });
+    const valid = verifySignature(
+      "RSA-SHA256",
+      Buffer.from(`${encodedHeader}.${encodedPayload}`),
+      key,
+      Buffer.from(encodedSignature, "base64url"),
+    );
+    if (!valid) throw unauthorized();
+
+    const now = Math.floor(Date.now() / 1000);
+    if (payload.iss !== this.issuer) throw unauthorized();
+    const audiences = Array.isArray(payload.aud) ? payload.aud : [payload.aud];
+    if (!audiences.includes(this.audience)) throw unauthorized();
+    if (typeof payload.exp !== "number" || payload.exp <= now) throw unauthorized();
+    if (typeof payload.nbf === "number" && payload.nbf > now + 30) throw unauthorized();
+
+    return payload;
+  }
+
+  private async keys(): Promise<Jwk[]> {
+    if (this.cachedKeys && this.cachedKeys.expiresAt > Date.now()) return this.cachedKeys.keys;
+    const response = await fetch(new URL(".well-known/jwks.json", this.issuer), {
+      signal: AbortSignal.timeout(5_000),
+    });
+    if (!response.ok) throw unauthorized();
+    const data = await response.json() as JwksResponse;
+    const keys = Array.isArray(data.keys) ? data.keys : [];
+    if (!keys.length) throw unauthorized();
+    this.cachedKeys = { keys, expiresAt: Date.now() + 5 * 60_000 };
+    return keys;
   }
 }
 
