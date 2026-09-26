@@ -111,7 +111,7 @@ export async function createApiApp(
     audit,
   );
 
-  registerHealthRoutes(app, repository);
+  registerHealthRoutes(app, repository, authorization);
   registerReportRoutes(app, reportService);
   registerIncidentRoutes(app, repository, authorization, analysis);
   registerRemediationRoutes(app, repository, authorization, remediation, events);
