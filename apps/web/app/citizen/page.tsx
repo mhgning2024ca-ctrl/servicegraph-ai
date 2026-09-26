@@ -1,18 +1,54 @@
 "use client";
 
 import { useState } from "react";
-import { Activity, CircleUserRound, MapPin, Mic, Send, TriangleAlert, Type, Wifi } from "lucide-react";
+import { Activity, CircleUserRound, MapPin, Mic, RotateCcw, Send, TriangleAlert, Type, Wifi } from "lucide-react";
 import { Brand } from "@/components/Brand";
+import { ApiClientError, createCitizenReport } from "@/lib/api";
 import { LanguageToggle, useLocale } from "@/lib/i18n";
 
-export default function CitizenPage() {
-  const { t } = useLocale();
-  const [mode, setMode] = useState<"idle"|"text"|"voice"|"sent">("idle");
-  const [text, setText] = useState("");
+type ReportMode = "idle" | "text" | "voice" | "sending" | "sent" | "error";
 
-  function submit() {
-    if (text.trim().length < 3) return;
-    setMode("sent");
+type Receipt = {
+  reportId: string;
+  receivedAt: string;
+};
+
+export default function CitizenPage() {
+  const { t, locale } = useLocale();
+  const [mode, setMode] = useState<ReportMode>("idle");
+  const [text, setText] = useState("");
+  const [receipt, setReceipt] = useState<Receipt | null>(null);
+  const [correlationId, setCorrelationId] = useState<string | null>(null);
+
+  async function submit() {
+    if (text.trim().length < 3 || mode === "sending") return;
+    setMode("sending");
+    setReceipt(null);
+    setCorrelationId(null);
+
+    try {
+      const response = await createCitizenReport({
+        clientReportId: crypto.randomUUID(),
+        channel: "WEB_TEXT",
+        text: text.trim(),
+        serviceId: null,
+        areaCode: "OTT-CENTRETOWN",
+        latitude: null,
+        longitude: null,
+        sourceLanguage: locale,
+      });
+      setReceipt(response.receipt);
+      setMode("sent");
+    } catch (error) {
+      if (error instanceof ApiClientError) setCorrelationId(error.correlationId);
+      setMode("error");
+    }
+  }
+
+  function resetReport() {
+    setMode("text");
+    setReceipt(null);
+    setCorrelationId(null);
   }
 
   return (
@@ -50,25 +86,50 @@ export default function CitizenPage() {
             )}
 
             {mode === "voice" && (
-              <div className="voice-state">
+              <div className="voice-state" role="status">
                 <span className="voice-orb"><Mic size={25}/></span>
-                <strong>ElevenLabs voice intake</strong>
-                <p>Ready for provider integration. Text fallback remains available.</p>
+                <strong>{t("voiceIntake")}</strong>
+                <p>{t("voiceUnavailable")}</p>
                 <button className="text-action" onClick={() => setMode("text")}>{t("type")}</button>
               </div>
             )}
 
-            {mode === "text" && (
+            {(mode === "text" || mode === "sending") && (
               <div className="text-report">
-                <textarea value={text} onChange={e => setText(e.target.value)} placeholder={t("placeholder")} rows={5}/>
-                <button className="btn primary full" onClick={submit} disabled={text.trim().length < 3}><Send size={17}/>{t("sendReport")}</button>
+                <textarea
+                  value={text}
+                  onChange={event => setText(event.target.value)}
+                  placeholder={t("placeholder")}
+                  rows={5}
+                  disabled={mode === "sending"}
+                />
+                <button
+                  className="btn primary full"
+                  onClick={submit}
+                  disabled={text.trim().length < 3 || mode === "sending"}
+                >
+                  <Send size={17}/>{mode === "sending" ? t("sendingReport") : t("sendReport")}
+                </button>
               </div>
             )}
 
-            {mode === "sent" && (
-              <div className="receipt">
+            {mode === "sent" && receipt && (
+              <div className="receipt" role="status">
                 <span><SignalIcon/></span>
-                <div><strong>{t("received")}</strong><small>{t("receipt")}</small></div>
+                <div>
+                  <strong>{t("received")}</strong>
+                  <small>{t("receipt")} {t("reportReference")}: <span className="mono">{receipt.reportId}</span></small>
+                </div>
+              </div>
+            )}
+
+            {mode === "error" && (
+              <div className="voice-state" role="alert">
+                <span className="voice-orb"><TriangleAlert size={25}/></span>
+                <strong>{t("apiUnavailable")}</strong>
+                <p>{t("reportError")}</p>
+                {correlationId && <small className="mono">{correlationId}</small>}
+                <button className="text-action" onClick={resetReport}><RotateCcw size={15}/>{t("retry")}</button>
               </div>
             )}
           </section>
@@ -76,17 +137,17 @@ export default function CitizenPage() {
           <section className="light-card nearby">
             <div className="nearby-head">
               <div><small className="light-kicker">{t("nearby")}</small><h2>{t("degradation")}</h2></div>
-              <span className="critical-pill"><TriangleAlert size={14}/>Critical</span>
+              <span className="critical-pill"><TriangleAlert size={14}/>{t("critical")}</span>
             </div>
             <p className="location"><MapPin size={15}/>{t("location")}</p>
             <div className="investigating"><span/>{t("investigating")}</div>
-            <button className="btn light full">{t("affectedToo")}</button>
+            <button className="btn light full" disabled title={t("incidentUnavailable")}>{t("affectedToo")}</button>
           </section>
         </div>
 
         <nav className="citizen-nav">
           <button className="active"><Wifi size={19}/><span>{t("status")}</span></button>
-          <button><TriangleAlert size={19}/><span>{t("report")}</span></button>
+          <button onClick={() => setMode("text")}><TriangleAlert size={19}/><span>{t("report")}</span></button>
           <button><Activity size={19}/><span>{t("activity")}</span></button>
           <button><CircleUserRound size={19}/><span>{t("profile")}</span></button>
         </nav>
