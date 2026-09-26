@@ -112,12 +112,12 @@ export async function getOperatorAccessToken(): Promise<string | null> {
   return typeof payload?.token === "string" && payload.token.length > 0 ? payload.token : null;
 }
 
-export async function createCitizenReport(input: CreateReportRequest): Promise<CreateReportResponse> {
+export async function createCitizenReport(input: CreateReportRequest, idempotencyKey = crypto.randomUUID()): Promise<CreateReportResponse> {
   const body = CreateReportRequestSchema.parse(input);
   return requestJson("/v1/reports", CreateReportResponseSchema, {
     method: "POST",
     body,
-    idempotencyKey: crypto.randomUUID(),
+    idempotencyKey,
   });
 }
 
