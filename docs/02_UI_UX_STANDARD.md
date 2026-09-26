@@ -89,6 +89,54 @@ Use restrained modern radii and elevation. Cards must not all appear as disconne
 
 Use a single coherent icon library. Icons supplement labels; critical actions may not rely on icon-only meaning without accessible name/tooltip.
 
+
+## 3.5 Bilingual interface standard — FR | EN
+
+The complete product is bilingual. French and English are first-class UI languages.
+
+### Canonical selector
+
+Render a compact language control as:
+
+```text
+FR | EN
+```
+
+Placement:
+
+- citizen/PWA: top app bar or account/header area where it remains immediately discoverable;
+- operations/NOC: top-right utility area in the global header;
+- landing/public page: header navigation.
+
+Behavior:
+
+- active language is visually distinct but not represented by color alone;
+- language change is immediate and does not reset current route, form progress, selected incident or dashboard context;
+- chosen locale persists across refresh/session;
+- all user-facing strings come from the localization layer; hard-coded English or French strings inside components are forbidden;
+- dates/numbers use locale-aware formatting where appropriate;
+- technical IDs and canonical metric/code values are never translated;
+- voice/customer communications may provide both FR and EN variants when generated;
+- screen-reader labels, tooltips, toasts, validation, empty/error/degraded states and confirmation dialogs must also be localized.
+
+### Translation architecture
+
+Frontend must use one centralized i18n dictionary/namespace system with at least:
+
+```text
+locales/
+  en/
+  fr/
+```
+
+or an equivalent framework structure approved by the frontend owner.
+
+No agent may create a second competing translation mechanism.
+
+### Demo requirement
+
+During judging, the operator must be able to switch at least one complete end-to-end flow from English to French without broken layout, untranslated control labels or route reset.
+
 ## 4. Citizen mobile navigation
 
 Canonical bottom navigation after initial onboarding:
