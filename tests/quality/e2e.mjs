@@ -93,4 +93,3 @@ if (incident?.id) {
 
 if (errors.length) fail("canonical report-to-communication E2E failed", errors);
 else pass("canonical report-to-correlation-to-safe-resolution E2E passed");
-
