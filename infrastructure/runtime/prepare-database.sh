@@ -43,16 +43,15 @@ write_file_block() {
     filename="$(basename "${absolute_path}")"
     checksum="$(sha256sum "${absolute_path}" | awk '{print $1}')"
 
-    printf "\\set prepared_filename '%s'\n" "${filename}" >> "${runner}"
-    printf "\\set prepared_checksum '%s'\n" "${checksum}" >> "${runner}"
+    printf '%s\n' "\\set prepared_filename '${filename}'" >> "${runner}"
+    printf '%s\n' "\\set prepared_checksum '${checksum}'" >> "${runner}"
     printf "SELECT COALESCE((SELECT checksum = :'prepared_checksum' FROM servicegraph_runtime_files WHERE kind = '%s' AND filename = :'prepared_filename'), TRUE) AS checksum_matches \\gset\n" "${kind}" >> "${runner}"
-    printf "\\if :checksum_matches\n" >> "${runner}"
+    printf '%s\n' '\if :checksum_matches' >> "${runner}"
     printf "SELECT NOT EXISTS (SELECT 1 FROM servicegraph_runtime_files WHERE kind = '%s' AND filename = :'prepared_filename') AS should_apply \\gset\n" "${kind}" >> "${runner}"
-    printf "\\if :should_apply\n" >> "${runner}"
-    printf "\\i %s\n" "${absolute_path}" >> "${runner}"
+    printf '%s\n' '\if :should_apply' >> "${runner}"
+    printf '%s\n' "\\i ${absolute_path}" >> "${runner}"
     printf "INSERT INTO servicegraph_runtime_files (kind, filename, checksum) VALUES ('%s', :'prepared_filename', :'prepared_checksum');\n" "${kind}" >> "${runner}"
-    printf "\\endif\n" >> "${runner}"
-    printf "\\else\n\\echo Refusing changed committed %s file :prepared_filename\nSELECT 1 / 0;\n\\endif\n" "${kind}" >> "${runner}"
+    printf '%s\n' '\endif' '\else' "\\echo Refusing changed committed ${kind} file :prepared_filename" 'SELECT 1 / 0;' '\endif' >> "${runner}"
   done
 }
 
