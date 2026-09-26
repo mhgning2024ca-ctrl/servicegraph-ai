@@ -7,7 +7,7 @@ import { Topology } from "@/components/Topology";
 import { useLocale } from "@/lib/i18n";
 
 export default function IncidentPage() {
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
   const [modal, setModal] = useState(false);
   const [approved, setApproved] = useState(false);
 
@@ -20,7 +20,7 @@ export default function IncidentPage() {
     ["Verifying","Vérification"],
     ["Resolved","Résolu"]
   ];
-  const isFr = typeof document !== "undefined" && document.documentElement.lang === "fr";
+  const isFr = locale === "fr";
 
   return (
     <OpsShell active="incidents">
