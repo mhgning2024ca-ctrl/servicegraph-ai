@@ -5,7 +5,10 @@ import { describe, expect, it } from "vitest";
 
 import type { AuthorizationAdapter } from "../src/auth/authorization.js";
 import { createApiApp } from "../src/app/create-api-app.js";
-import { createSeededDemoRepository } from "../src/mocks/demo-runtime.js";
+import {
+  createSeededDemoRepository,
+  DeterministicIncidentAnalysisAdapter,
+} from "../src/mocks/demo-runtime.js";
 
 class IncidentManagerAuthorization implements AuthorizationAdapter {
   async authenticate(_request: FastifyRequest) {
@@ -36,6 +39,9 @@ describe("canonical ServiceGraph demo loop", () => {
       dependencies: {
         repository,
         authorization: new IncidentManagerAuthorization(),
+        // The canonical end-to-end fixture intentionally opts into mock mode;
+        // runtime composition otherwise returns an explicit provider failure.
+        incidentAnalysis: new DeterministicIncidentAnalysisAdapter(),
       },
       generateCorrelationId: () => "5bf4d3c1-0d49-4e21-aa91-e248d4f22da9",
     });

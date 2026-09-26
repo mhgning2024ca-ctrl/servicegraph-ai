@@ -16,6 +16,7 @@ import { registerCommunicationRoutes } from "../modules/communications/routes.js
 import { registerHealthRoutes } from "../modules/health/routes.js";
 import { IncidentAnalysisOrchestrator } from "../modules/incidents/analysis-orchestrator.js";
 import { registerIncidentRoutes } from "../modules/incidents/full-routes.js";
+import { createRuntimeAiIncidentAnalysisAdapter } from "../modules/incidents/runtime-ai-adapter.js";
 import { RemediationOrchestrator } from "../modules/remediation/remediation-orchestrator.js";
 import { registerRemediationRoutes } from "../modules/remediation/routes.js";
 import {
@@ -102,8 +103,11 @@ export async function createApiApp(
   const events = options.dependencies?.events ?? new InMemoryOperationalEventBus();
   const idempotency =
     options.dependencies?.idempotency ?? new InMemoryIdempotencyStore();
+  // A deterministic analyzer is only used when explicitly injected (tests or
+  // a dedicated mock composition). The default server path reports Gemini
+  // unavailability/degradation rather than fabricating a hypothesis.
   const incidentAnalysis =
-    options.dependencies?.incidentAnalysis ?? new DeterministicIncidentAnalysisAdapter();
+    options.dependencies?.incidentAnalysis ?? createRuntimeAiIncidentAnalysisAdapter(repository);
   const simulator =
     options.dependencies?.simulator ?? new DeterministicSimulatorAdapter();
   const verifier =

@@ -10,6 +10,12 @@ importers:
 
   apps/api:
     dependencies:
+      '@servicegraph/ai':
+        specifier: file:../../services/ai
+        version: link:../../services/ai
+      '@servicegraph/backboard':
+        specifier: file:../../services/memory/backboard
+        version: link:../../services/memory/backboard
       '@servicegraph/contracts':
         specifier: file:../../packages/contracts
         version: link:../../packages/contracts

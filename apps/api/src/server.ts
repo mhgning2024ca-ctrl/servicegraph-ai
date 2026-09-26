@@ -2,6 +2,7 @@ import { createApiApp } from "./app/create-api-app.js";
 import { createRuntimeAuthorizationAdapter } from "./auth/runtime-authorization.js";
 import { createSeededDemoRepository } from "./mocks/demo-runtime.js";
 import { createPostgresPool, PostgresBackendRepository } from "@servicegraph/db";
+import { createRuntimeAiIncidentAnalysisAdapter } from "./modules/incidents/runtime-ai-adapter.js";
 
 const port = Number.parseInt(process.env.API_PORT ?? "3001", 10);
 const host = process.env.API_HOST ?? "0.0.0.0";
@@ -14,6 +15,7 @@ const databaseUrl = process.env.DATABASE_URL?.trim();
 const postgres = databaseUrl ? createPostgresPool(databaseUrl) : null;
 const repository = postgres ? new PostgresBackendRepository(postgres) : createSeededDemoRepository();
 const authorization = createRuntimeAuthorizationAdapter(process.env);
+const incidentAnalysis = createRuntimeAiIncidentAnalysisAdapter(repository, process.env);
 
 const app = await createApiApp({
   logger: true,
@@ -22,6 +24,7 @@ const app = await createApiApp({
     repository,
     ...(postgres ? { telemetry: repository } : {}),
     authorization,
+    incidentAnalysis,
   },
 });
 
