@@ -3,8 +3,14 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "exports": "./index.ts",
+  "exports": {
+    ".": {
+      "types": "./index.ts",
+      "default": "./dist/index.js"
+    }
+  },
   "scripts": {
+    "build": "tsc --noEmit false --outDir dist --rootDir .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },
