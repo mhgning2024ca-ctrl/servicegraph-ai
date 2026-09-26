@@ -45,14 +45,14 @@ Decision required: integrate the frozen root workspace/runtime baseline so compo
 - A5 includes fail-closed authorization, unauthorized operator approval rejection, voice input policy and degraded provider tests.
 - Runtime/API-level enforcement remains unproven until Q-001–Q-003 are resolved and branches are integrated.
 
-## Q-004 — Frozen public, voice and telemetry route registration gaps
+## Q-004 — Resolved: frozen public, voice and telemetry route registration
 
 ```text
-BLOCKER_ID: Q-004
+BLOCKER_ID: Q-004 (resolved on integration@6a1f267)
 Agent: A6 Quality; owner/action: A2 Backend Core / A7 integration coordinator
 File/Subsystem: apps/api/src/app/create-api-app.ts, apps/api/src/modules/**
 Expected contract: frozen routes must expose GET /v1/reports/:id, POST /v1/telemetry, public config/status and affected-confirmation paths, and POST /v1/voice/transcriptions in the application runtime.
-Observed ambiguity/conflict: source inspection at integration 99a57ec finds no report-read or telemetry handler module; public and voice handlers exist but createApiApp() does not import/register registerPublicRoutes or registerVoiceRoutes.
-Work that can continue safely: the registered-route inventory test and live vertical E2E remain in tests/quality without changing API contracts or backend behavior.
-Decision required: backend/integration owner must implement the frozen report/telemetry handlers and register the existing public/voice modules, then run the inventory and live E2E against persisted credentials.
+Observed ambiguity/conflict: resolved by integration@6a1f267: report-read and telemetry handlers are present, and createApiApp() registers telemetry, public and voice routes.
+Work that can continue safely: `tests/quality/frozen-route-inventory.mjs` is now a mandatory CI gate and protects this registration set against regression.
+Decision required: none for route registration; provide live persisted credentials to execute the separate strict E2E.
 ```

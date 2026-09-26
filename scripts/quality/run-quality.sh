@@ -3,7 +3,7 @@ set -uo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 shell_tests=(contracts.sh secrets.sh)
-node_tests=(implementation-contracts.mjs components.mjs ui-smoke.mjs frozen-route-inventory.mjs api-smoke.mjs e2e.mjs)
+node_tests=(implementation-contracts.mjs components.mjs ui-smoke.mjs frozen-route-inventory.mjs api-smoke.mjs e2e.mjs live-e2e.mjs)
 failed=0
 blocked=0
 
