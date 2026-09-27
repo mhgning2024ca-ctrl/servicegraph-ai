@@ -24,7 +24,7 @@ export function OpsShell({ children, active = "overview" }: { children: ReactNod
   const items = [
     ["/ops", t("overview"), LayoutDashboard, "overview"],
     ["/ops/incidents/INC-2048", t("incidents"), Siren, "incidents"],
-    ["/ops/network", t("network"), Network, "network"],
+    ["/ops/network", locale === "fr" ? "Services & actifs" : "Services & assets", Network, "network"],
     ["/ops/reports", t("reports"), FileWarning, "reports"],
     ["/ops/analytics", t("analytics"), BarChart3, "analytics"],
     ["/ops/audit", t("audit"), ScrollText, "audit"]
