@@ -149,16 +149,26 @@ export default function CitizenPage() {
 
   async function loadPublicData() {
     setRuntimeState("loading");
-    try {
-      const [config, response] = await Promise.all([getPublicConfig(), listPublicIncidents()]);
-      setVoiceAvailable(config.features.elevenLabs);
-      setIncidents(response.incidents);
-      setRuntimeState("live");
-    } catch {
+
+    const [configResult, incidentResult] = await Promise.allSettled([
+      getPublicConfig(),
+      listPublicIncidents(),
+    ]);
+
+    if (configResult.status === "fulfilled") {
+      setVoiceAvailable(configResult.value.features.elevenLabs);
+    } else {
       setVoiceAvailable(false);
-      setIncidents([]);
-      setRuntimeState("error");
     }
+
+    if (incidentResult.status === "fulfilled") {
+      setIncidents(incidentResult.value.incidents);
+      setRuntimeState("live");
+      return;
+    }
+
+    setIncidents([]);
+    setRuntimeState("error");
   }
 
   function navigate(next: Tab) {
